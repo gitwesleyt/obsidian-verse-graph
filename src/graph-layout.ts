@@ -1,7 +1,7 @@
 // Copied from the Bible Journal web app (bible-journal-app/src/lib/graph-layout.ts) on 2026-09-26.
 // Only change: "@/lib/" imports made relative. Keep in step with the original rather than editing here.
 
-import { testamentOf, type GraphTestamentNode } from "./graph-rules";
+import { bookPath, type GraphBookNode, type GraphTestamentNode } from "./graph-rules";
 
 /**
  * Where every node on the Graph screen sits (v3's item 8.2). Pure -- rows in,
@@ -12,7 +12,9 @@ import { testamentOf, type GraphTestamentNode } from "./graph-rules";
  * verses stacked at a fixed pitch in canonical order, and every parent level
  * with the middle of its own children (measured off the mock: Psalm 23 sits
  * halfway between 23:1 and 23:4). A fifth column holds the entries, stacked
- * from the top at the same pitch. `v3/decisions/8.1-graph-view-spike.md` priced
+ * from the top at the same pitch. **With the *Literary categories* setting on
+ * (item 8.6) a column of categories sits between Testament and Book** and
+ * everything to its right moves over. `v3/decisions/8.1-graph-view-spike.md` priced
  * the libraries that do this and found the twenty lines below cheaper than all
  * of them.
  *
@@ -23,28 +25,61 @@ import { testamentOf, type GraphTestamentNode } from "./graph-rules";
  * pixels.
  */
 
-export type GraphColumn = "testament" | "book" | "chapter" | "verse" | "entry";
+export type GraphColumn = "testament" | "category" | "book" | "chapter" | "verse" | "entry";
 
-/** Left edge and width of each column, in rem. */
-export const GRAPH_COLUMNS: Record<GraphColumn, { x: number; width: number }> = {
+export type GraphColumns = Record<GraphColumn, { x: number; width: number }>;
+
+/** How wide each column is, in rem. */
+const COLUMN_WIDTHS: Record<GraphColumn, number> = {
   // Wide enough for "New Testament", its ▾ and its count, at the design's weight.
-  testament: { x: 0, width: 11.5 },
-  book: { x: 14, width: 9.5 },
-  chapter: { x: 26, width: 10 },
-  verse: { x: 38.5, width: 11 },
+  testament: 11.5,
+  // Wide enough for "Wisdom and Poetry", its ▾ and a three-figure count.
+  category: 13,
+  book: 9.5,
+  chapter: 10,
+  verse: 11,
   // Wide enough for a date, the verse count and about forty characters of
   // title -- the app owner's call on the preview, where 17rem cut most real
   // titles short. Longer ones still end in an ellipsis.
-  entry: { x: 52.5, width: 26 },
+  entry: 26,
 };
 
+/** The room between two tree columns, where their lines curve. */
+const TREE_GAP = 2.5;
+/** The room before the entries column, a little wider -- item 8.2's spacing. */
+const ENTRY_GAP = 3;
+
+/** Left to right, with the categories column (item 8.6). */
 export const GRAPH_COLUMN_ORDER: readonly GraphColumn[] = [
   "testament",
+  "category",
   "book",
   "chapter",
   "verse",
   "entry",
 ];
+
+/**
+ * Left edge and width of each column, in rem, laid side by side in order.
+ * **Without categories the column is skipped** and given no width where the
+ * book column starts -- a place nothing is ever drawn, kept so every column
+ * always has an answer.
+ */
+export function graphColumns(withCategories: boolean): GraphColumns {
+  const columns = {} as GraphColumns;
+  let x = 0;
+  for (const column of GRAPH_COLUMN_ORDER) {
+    if (column === "category" && !withCategories) continue;
+    if (column === "entry") x += ENTRY_GAP - TREE_GAP;
+    columns[column] = { x, width: COLUMN_WIDTHS[column] };
+    x += COLUMN_WIDTHS[column] + TREE_GAP;
+  }
+  if (!withCategories) columns.category = { x: columns.book.x, width: 0 };
+  return columns;
+}
+
+/** The columns as the graph draws them with the setting off, which is the default. */
+export const GRAPH_COLUMNS: GraphColumns = graphColumns(false);
 
 /** One row of the stack: the design's 38px at a 16px root. */
 export const GRAPH_ROW_PITCH = 2.375;
@@ -59,7 +94,9 @@ export const GRAPH_NODE_HEIGHT = 1.875;
 export const GRAPH_TOP = 2.5;
 
 /** The width of everything, entries column included. */
-export const GRAPH_WIDTH = GRAPH_COLUMNS.entry.x + GRAPH_COLUMNS.entry.width;
+function widthOf(columns: GraphColumns): number {
+  return columns.entry.x + columns.entry.width;
+}
 
 export type PlacedNode = {
   key: string;
@@ -76,6 +113,10 @@ export type GraphLayout = {
   byKey: Map<string, PlacedNode>;
   /** How tall the tree is, in rem, headings included. */
   treeHeight: number;
+  /** Where each column is -- which depends on whether categories are drawn. */
+  columns: GraphColumns;
+  /** How wide everything is, in rem, entries column included. */
+  width: number;
 };
 
 /** The top edge of row `index` in either stacked column. */
@@ -118,6 +159,48 @@ export function layoutGraph(
   const nodes: PlacedNode[] = [];
   let row = 0;
 
+  /** A book and whatever of it is open; returns where the book sits. */
+  function placeBook(book: GraphBookNode, parentKey: string): number {
+    let y: number;
+
+    if (!isOpen(book.key)) {
+      // Closed: a row of its own, and nothing drawn to its right.
+      y = rowTop(row++);
+    } else {
+      const chapterYs: number[] = [];
+
+      for (const chapter of book.chapters) {
+        let chapterY: number;
+
+        if (!isOpen(chapter.key)) {
+          chapterY = rowTop(row++);
+        } else {
+          const verseYs: number[] = [];
+          for (const verse of chapter.verses) {
+            const verseY = rowTop(row++);
+            verseYs.push(verseY);
+            nodes.push({ key: verse.key, column: "verse", parentKey: chapter.key, y: verseY });
+          }
+          chapterY = middle(verseYs[0], verseYs.at(-1)!);
+        }
+
+        chapterYs.push(chapterY);
+        nodes.push({ key: chapter.key, column: "chapter", parentKey: book.key, y: chapterY });
+      }
+
+      y = middle(chapterYs[0], chapterYs.at(-1)!);
+    }
+
+    nodes.push({ key: book.key, column: "book", parentKey, y });
+    return y;
+  }
+
+  /** A run of books under one parent; returns the middle of them. */
+  function placeBooks(books: readonly GraphBookNode[], parentKey: string): number {
+    const ys = books.map((book) => placeBook(book, parentKey));
+    return middle(ys[0], ys.at(-1)!);
+  }
+
   for (const testament of tree) {
     // A closed testament is one row, like a closed book.
     if (!isOpen(testament.key)) {
@@ -125,75 +208,51 @@ export function layoutGraph(
       continue;
     }
 
-    const bookYs: number[] = [];
-
-    for (const book of testament.books) {
-      let y: number;
-
-      if (!isOpen(book.key)) {
-        // Closed: a row of its own, and nothing drawn to its right.
-        y = rowTop(row++);
-      } else {
-        const chapterYs: number[] = [];
-
-        for (const chapter of book.chapters) {
-          let chapterY: number;
-
-          if (!isOpen(chapter.key)) {
-            chapterY = rowTop(row++);
-          } else {
-            const verseYs: number[] = [];
-            for (const verse of chapter.verses) {
-              const verseY = rowTop(row++);
-              verseYs.push(verseY);
-              nodes.push({ key: verse.key, column: "verse", parentKey: chapter.key, y: verseY });
-            }
-            chapterY = middle(verseYs[0], verseYs.at(-1)!);
-          }
-
-          chapterYs.push(chapterY);
-          nodes.push({ key: chapter.key, column: "chapter", parentKey: book.key, y: chapterY });
-        }
-
-        y = middle(chapterYs[0], chapterYs.at(-1)!);
-      }
-
-      bookYs.push(y);
-      nodes.push({ key: book.key, column: "book", parentKey: testament.key, y });
+    let y: number;
+    if (testament.categories) {
+      // A category opens and closes like a book (item 8.6).
+      const categoryYs = testament.categories.map((category) => {
+        const categoryY = isOpen(category.key)
+          ? placeBooks(category.books, category.key)
+          : rowTop(row++);
+        nodes.push({ key: category.key, column: "category", parentKey: testament.key, y: categoryY });
+        return categoryY;
+      });
+      y = middle(categoryYs[0], categoryYs.at(-1)!);
+    } else {
+      y = placeBooks(testament.books, testament.key);
     }
 
-    nodes.push({
-      key: testament.key,
-      column: "testament",
-      parentKey: null,
-      y: middle(bookYs[0], bookYs.at(-1)!),
-    });
+    nodes.push({ key: testament.key, column: "testament", parentKey: null, y });
   }
 
+  const columns = graphColumns(tree.some((testament) => testament.categories !== null));
   return {
     nodes,
     byKey: new Map(nodes.map((node) => [node.key, node])),
     treeHeight: rowTop(row),
+    columns,
+    width: widthOf(columns),
   };
 }
 
 /**
  * The box a line to or from a verse range lands on: the range itself if it is
- * showing, else its chapter, else its book, else its testament -- so a line
- * to an entry still says
- * *somewhere in Psalms* while Psalms is closed, rather than vanishing.
+ * showing, else its chapter, else its book, else its category, else its
+ * testament -- so a line to an entry still says *somewhere in Psalms* while
+ * Psalms is closed, rather than vanishing.
  */
 export function anchorFor(
   layout: GraphLayout,
   range: { book: string; chapter: number },
   rangeKey: string,
 ): PlacedNode | undefined {
-  return (
-    layout.byKey.get(rangeKey) ??
-    layout.byKey.get(`${range.book}|${range.chapter}`) ??
-    layout.byKey.get(range.book) ??
-    layout.byKey.get(testamentOf(range.book))
-  );
+  const upwards = [rangeKey, `${range.book}|${range.chapter}`, ...bookPath(range.book).reverse()];
+  for (const key of upwards) {
+    const node = layout.byKey.get(key);
+    if (node) return node;
+  }
+  return undefined;
 }
 
 /**
@@ -203,9 +262,10 @@ export function anchorFor(
 export function curveBetween(
   from: { column: GraphColumn; y: number },
   to: { column: GraphColumn; y: number },
+  columns: GraphColumns = GRAPH_COLUMNS,
 ): string {
-  const x1 = GRAPH_COLUMNS[from.column].x + GRAPH_COLUMNS[from.column].width;
-  const x2 = GRAPH_COLUMNS[to.column].x;
+  const x1 = columns[from.column].x + columns[from.column].width;
+  const x2 = columns[to.column].x;
   const y1 = from.y + GRAPH_NODE_HEIGHT / 2;
   const y2 = to.y + GRAPH_NODE_HEIGHT / 2;
   const mid = (x1 + x2) / 2;

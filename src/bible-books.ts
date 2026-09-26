@@ -1,5 +1,5 @@
-// Copied from Scripture Thread (obsidian-scripture-thread/src/bible-books.ts) on 2026-09-26.
-// Keep in step with the original rather than editing here.
+// Copied from the Bible Journal web app (bible-journal-app/src/lib/bible-books.ts) on 2026-09-26.
+// Unchanged. A superset of Scripture Thread's copy (adds BOOK_CATEGORIES). Keep in step with the original rather than editing here.
 
 /**
  * The 66 books, how many chapters each has, and what people call them.
@@ -125,6 +125,57 @@ export const BIBLE_BOOKS: BibleBook[] = [
   { name: "Jude", chapters: 1, aliases: [] },
   { name: "Revelation", chapters: 22, aliases: ["Revelations", "Rev", "Rv"] },
 ];
+
+/**
+ * The books grouped the way a study Bible groups them (item 8.6) -- what the
+ * Graph screen's *Literary categories* column draws.
+ *
+ * **Each group is a run of the list above, named by its first and last book**,
+ * never a second list of books: the order and the membership both come from
+ * `BIBLE_BOOKS`, and `bible-books.test.ts` holds that the runs cover every book
+ * exactly once, in order. The usual Protestant grouping, as item 8.6's brief
+ * gave it; `v3/design/8.6-graph-literary-categories/README.md` is the calls.
+ *
+ * **History is two groups**, one in each testament, because Acts is history
+ * too and a group never straddles the two testaments. `id` is what tells them
+ * apart; the name is what the reader sees, and both say *History*.
+ */
+export type BookCategory = {
+  id: string;
+  name: string;
+  first: string;
+  last: string;
+};
+
+export const BOOK_CATEGORIES: readonly BookCategory[] = [
+  { id: "law", name: "Law", first: "Genesis", last: "Deuteronomy" },
+  { id: "history-old", name: "History", first: "Joshua", last: "Esther" },
+  { id: "wisdom", name: "Wisdom and Poetry", first: "Job", last: "Song of Solomon" },
+  { id: "major-prophets", name: "Major Prophets", first: "Isaiah", last: "Daniel" },
+  { id: "minor-prophets", name: "Minor Prophets", first: "Hosea", last: "Malachi" },
+  { id: "gospels", name: "Gospels", first: "Matthew", last: "John" },
+  { id: "history-new", name: "History", first: "Acts", last: "Acts" },
+  { id: "pauline", name: "Pauline Epistles", first: "Romans", last: "Philemon" },
+  { id: "general", name: "General Epistles", first: "Hebrews", last: "Jude" },
+  { id: "prophecy", name: "Prophecy", first: "Revelation", last: "Revelation" },
+];
+
+const CATEGORY_OF_BOOK = new Map<string, BookCategory>();
+{
+  const position = new Map(BIBLE_BOOKS.map((book, index) => [book.name, index]));
+  for (const category of BOOK_CATEGORIES) {
+    const from = position.get(category.first) ?? 0;
+    const to = position.get(category.last) ?? -1;
+    for (let index = from; index <= to; index++) {
+      CATEGORY_OF_BOOK.set(BIBLE_BOOKS[index].name, category);
+    }
+  }
+}
+
+/** The group a book belongs to, by its canonical name; undefined for a name this list does not know. */
+export function categoryOfBook(name: string): BookCategory | undefined {
+  return CATEGORY_OF_BOOK.get(name);
+}
 
 /** The longest chapter in the Bible is Psalm 119, at 176 verses. */
 export const MAX_VERSE_NUMBER = 176;

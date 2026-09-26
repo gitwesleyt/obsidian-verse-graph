@@ -4,7 +4,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  blocksCiting,
+  bookPath,
   buildGraphTree,
+  CATEGORY_KEYS,
   collapseOneLevel,
   expandOneLevel,
   openLevelsOf,
@@ -13,6 +16,7 @@ import {
   litPath,
   rangeKey,
   rangeLabel,
+  rangesOfBlock,
   testamentOf,
   verseNodesOf,
   type GraphVerseRow,
@@ -133,10 +137,87 @@ describe("buildGraphTree", () => {
 });
 
 describe("litPath", () => {
-  it("lights a range and everything above it", () => {
+  it("lights a range and everything above it, its category included", () => {
     const range = { book: "Romans", chapter: 8, first: 28, last: 28 };
     const lit = litPath([range]);
-    expect([...lit]).toEqual([rangeKey(range), "Romans|8", "Romans", "new"]);
+    expect([...lit].sort()).toEqual(
+      [rangeKey(range), "Romans|8", "Romans", "category:pauline", "new"].sort(),
+    );
+  });
+});
+
+describe("bookPath", () => {
+  it("is the testament, the category and the book, top down", () => {
+    expect(bookPath("Acts")).toEqual(["new", "category:history-new", "Acts"]);
+    expect(bookPath("Ruth")).toEqual(["old", "category:history-old", "Ruth"]);
+  });
+
+  it("names a key for every category, and only those", () => {
+    expect(CATEGORY_KEYS).toHaveLength(10);
+    expect(CATEGORY_KEYS).toContain(bookPath("Psalms")[1]);
+  });
+});
+
+describe("buildGraphTree with literary categories (item 8.6)", () => {
+  const rows = [
+    row("Psalms", 23, 1, 1, 5),
+    row("Proverbs", 3, 5, 6, 2),
+    row("Isaiah", 40, 31, 31, 1),
+    row("Acts", 2, 38, 38, 4),
+    row("John", 3, 16, 16, 3),
+  ];
+
+  it("has no categories when the setting is off", () => {
+    expect(buildGraphTree(rows).every((t) => t.categories === null)).toBe(true);
+  });
+
+  it("groups the cited books in canonical order, with only cited categories", () => {
+    const [old, nt] = buildGraphTree(rows, { categories: true });
+    expect(old.categories!.map((c) => c.label)).toEqual(["Wisdom and Poetry", "Major Prophets"]);
+    expect(old.categories![0].books.map((b) => b.label)).toEqual(["Psalms", "Proverbs"]);
+    expect(nt.categories!.map((c) => c.label)).toEqual(["Gospels", "History"]);
+  });
+
+  it("rolls the counts up through the category, as every level does", () => {
+    const [old, nt] = buildGraphTree(rows, { categories: true });
+    expect(old.categories![0].count).toBe(7);
+    expect(old.count).toBe(8);
+    expect(nt.categories!.map((c) => c.count)).toEqual([3, 4]);
+  });
+
+  it("shares its book nodes with the flat list, so both describe one tree", () => {
+    const [old] = buildGraphTree(rows, { categories: true });
+    expect(old.categories![0].books[0]).toBe(old.books[0]);
+    expect(old.books.map((b) => b.label)).toEqual(["Psalms", "Proverbs", "Isaiah"]);
+  });
+
+  it("gives the two History groups different keys", () => {
+    const tree = buildGraphTree([row("Ruth", 1, 16, 16, 1), row("Acts", 1, 8, 8, 1)], {
+      categories: true,
+    });
+    const keys = tree.flatMap((t) => t.categories!.map((c) => c.key));
+    expect(keys).toEqual(["category:history-old", "category:history-new"]);
+  });
+});
+
+describe("expanding and collapsing with literary categories", () => {
+  const tree = buildGraphTree([row("Psalms", 23, 1, 1, 1), row("John", 3, 16, 16, 1)], {
+    categories: true,
+  });
+  const levels = openLevelsOf(tree);
+
+  it("steps through the categories between the testaments and the books", () => {
+    expect(levels).toHaveLength(4);
+    expect(levels[1]).toEqual(["category:wisdom", "category:gospels"]);
+    expect(levels[2]).toEqual(["Psalms", "John"]);
+  });
+
+  it("opens the books first from where the screen opens, with every category open", () => {
+    const opening = new Set([...levels[0], ...levels[1]]);
+    expect([...expandOneLevel(opening, levels)].sort()).toEqual(
+      [...levels[0], ...levels[1], ...levels[2]].sort(),
+    );
+    expect([...collapseOneLevel(opening, levels)].sort()).toEqual([...levels[0]].sort());
   });
 });
 
@@ -173,5 +254,56 @@ describe("expanding and collapsing one level at a time", () => {
     const oneChapterOpen = new Set([...levels[0], "Psalms", "John", "Psalms|23"]);
     expect(collapseOneLevel(oneChapterOpen, levels).has("Psalms|23")).toBe(false);
     expect(collapseOneLevel(oneChapterOpen, levels).has("John")).toBe(true);
+  });
+});
+
+describe("rangesOfBlock", () => {
+  const tag = (book: string, chapter: number, verse: number | null) => ({ book, chapter, verse });
+
+  it("reads a run of consecutive verses as one range, as migration 0038 does", () => {
+    expect(rangesOfBlock([tag("Proverbs", 3, 6), tag("Proverbs", 3, 5)])).toEqual([
+      { book: "Proverbs", chapter: 3, first: 5, last: 6 },
+    ]);
+  });
+
+  it("splits at a gap, and keeps a single verse as a range of one", () => {
+    expect(rangesOfBlock([tag("John", 3, 16), tag("John", 3, 17), tag("John", 3, 20)])).toEqual([
+      { book: "John", chapter: 3, first: 16, last: 17 },
+      { book: "John", chapter: 3, first: 20, last: 20 },
+    ]);
+  });
+
+  it("keeps a whole chapter apart from that chapter's verses, before them", () => {
+    expect(rangesOfBlock([tag("Psalms", 23, 1), tag("Psalms", 23, null)])).toEqual([
+      { book: "Psalms", chapter: 23, first: null, last: null },
+      { book: "Psalms", chapter: 23, first: 1, last: 1 },
+    ]);
+  });
+
+  it("never joins verses of two chapters", () => {
+    expect(rangesOfBlock([tag("John", 3, 36), tag("John", 4, 1)])).toHaveLength(2);
+  });
+});
+
+describe("blocksCiting", () => {
+  const cited = new Map([
+    ["a", [{ book: "Proverbs", chapter: 3, verse: 5 }]],
+    ["b", [{ book: "Proverbs", chapter: 3, verse: 5 }, { book: "Proverbs", chapter: 3, verse: 6 }]],
+    ["c", [{ book: "Psalms", chapter: 23, verse: null }]],
+  ]);
+  const order = ["a", "b", "c", "d"];
+
+  it("finds the blocks citing exactly that range, in reading order", () => {
+    expect(blocksCiting(order, cited, { book: "Proverbs", chapter: 3, first: 5, last: 5 })).toEqual(["a"]);
+    expect(blocksCiting(order, cited, { book: "Proverbs", chapter: 3, first: 5, last: 6 })).toEqual(["b"]);
+    expect(blocksCiting(order, cited, { book: "Psalms", chapter: 23, first: null, last: null })).toEqual(["c"]);
+  });
+
+  it("falls back to any block citing a verse inside the range when none cites it exactly", () => {
+    expect(blocksCiting(order, cited, { book: "Proverbs", chapter: 3, first: 4, last: 6 })).toEqual(["a", "b"]);
+  });
+
+  it("finds nothing for a range the entry does not cite", () => {
+    expect(blocksCiting(order, cited, { book: "Romans", chapter: 8, first: 28, last: 28 })).toEqual([]);
   });
 });

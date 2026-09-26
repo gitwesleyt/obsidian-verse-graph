@@ -7,7 +7,7 @@
  *
  * `@panzoom/panzoom` does the gestures -- wheel, pinch, drag -- and transforms
  * one element. What it does not do is anything the design asks beyond that:
- * the eight steps the −/+ buttons move between, **Fit**, keeping the graph from
+ * the eight steps the −/+ buttons move between, **Fit**, **Center**, keeping the graph from
  * being dragged out of sight (design G7c), and bringing a node the keyboard
  * has reached into view. Those are here, where they can be tested without a
  * browser.
@@ -200,13 +200,44 @@ export function openingView(
   // **Never above 100% either**: the graph opens with every book closed, and
   // that small a tree fits at 200%, which is a first look at one's journal in
   // letters an inch high.
-  if (fit.scale > OPENING_MAX) {
-    return { scale: OPENING_MAX, pan: placeAt(content, viewport, OPENING_MAX, inset) };
-  }
-  if (fit.scale >= OPENING_ZOOM) return fit;
+  const scale = Math.min(OPENING_MAX, Math.max(OPENING_ZOOM, fit.scale));
+  return centerView(content, viewport, scale, inset);
+}
+
+/**
+ * **Center** (item 8.8): the graph put back where the screen opens it, at the
+ * zoom it is at now -- for a reader who has panned off into the dots and lost
+ * it. Fit is the other way back, and it changes the zoom to do it.
+ *
+ * **The opening view's own placement, asked at another zoom**, which is why
+ * `openingView` is written with it: centred when the whole graph fits, and
+ * otherwise its top-left corner in the corner, where the first branch is. At
+ * the opening zoom the two answers are the same view.
+ *
+ * **Both axes, not each on its own** -- `placeAt` centres one axis and pins the
+ * other, which on a tall, narrow tree at 80% would put the testaments in the
+ * middle of the screen with nothing to their left, where the screen opens
+ * them at the left edge.
+ */
+export function centerView(
+  content: Size,
+  viewport: Size,
+  scale: number,
+  inset: Inset = NO_INSET,
+): { scale: number; pan: Point } {
+  // Half a pixel of tolerance, so the zoom Fit worked out -- at which the
+  // graph fits exactly -- is not a rounding error away from fitting.
+  const fits = (contentSize: number, room: number) =>
+    contentSize * scale + FIT_MARGIN * 2 <= room + 0.5;
+  const wholeGraphFits =
+    fits(content.width, viewport.width) &&
+    fits(content.height, viewport.height - inset.top - inset.bottom);
+
   return {
-    scale: OPENING_ZOOM,
-    pan: { x: FIT_MARGIN / OPENING_ZOOM, y: (inset.top + FIT_MARGIN) / OPENING_ZOOM },
+    scale,
+    pan: wholeGraphFits
+      ? placeAt(content, viewport, scale, inset)
+      : { x: FIT_MARGIN / scale, y: (inset.top + FIT_MARGIN) / scale },
   };
 }
 

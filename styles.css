@@ -1,7 +1,422 @@
-.verse-graph .verse-graph-muted {
+/* Verse graph. Colours come from the theme, so it follows light, dark and custom themes. */
+
+.verse-graph {
+	--vg-accent: var(--interactive-accent);
+	--vg-lit: color-mix(in srgb, var(--interactive-accent) 12%, var(--background-primary));
+	--vg-ring: color-mix(in srgb, var(--interactive-accent) 25%, transparent);
+	--vg-line: var(--background-modifier-border-hover);
+	--vg-faint: color-mix(in srgb, var(--text-muted) 40%, transparent);
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-4-3);
+}
+
+.verse-graph-header {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2);
+	min-height: 2.25rem;
+}
+
+.verse-graph-status {
+	flex: 1;
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+}
+
+.verse-graph-status strong {
+	color: var(--text-normal);
+	font-weight: var(--font-semibold);
+}
+
+.verse-graph-row {
+	flex: 1;
+	min-height: 0;
+	display: flex;
+	gap: var(--size-4-3);
+}
+
+/* The canvas */
+
+.verse-graph-canvas {
+	position: relative;
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	outline: none;
+	cursor: grab;
+	touch-action: none;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	background-color: var(--background-primary);
+	background-image: radial-gradient(var(--background-modifier-border) 1px, transparent 1px);
+	background-size: 1.25rem 1.25rem;
+}
+
+.verse-graph-canvas:active {
+	cursor: grabbing;
+}
+
+.verse-graph-surface {
+	position: absolute;
+	top: 0;
+	left: 0;
+}
+
+.verse-graph-drawing {
+	position: relative;
+}
+
+.verse-graph-heading {
+	position: absolute;
+	top: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+}
+
+.verse-graph-lines {
+	position: absolute;
+	top: 0;
+	left: 0;
+	overflow: visible;
+	fill: none;
+}
+
+.verse-graph-line {
+	stroke: var(--vg-line);
+	stroke-width: 1.4;
+	transition:
+		stroke 200ms ease-out,
+		opacity 200ms ease-out;
+}
+
+.verse-graph-line.is-lit {
+	stroke: var(--vg-accent);
+	stroke-width: 2;
+}
+
+.verse-graph-line.is-faint {
+	stroke: var(--vg-faint);
+	stroke-width: 1;
+}
+
+.verse-graph-line.is-dimmed {
+	opacity: 0.35;
+}
+
+/* One box: a testament, book, chapter, verse or note. Depth is size, weight and fill, not colour. */
+
+.verse-graph-node {
+	position: absolute;
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	height: 1.875rem;
+	padding: 0 0.625rem;
+	overflow: hidden;
+	white-space: nowrap;
+	cursor: pointer;
+	color: var(--text-normal);
+	font-size: var(--font-ui-small);
+	background-color: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	transition:
+		opacity 200ms ease-out,
+		border-color 200ms ease-out,
+		background-color 200ms ease-out,
+		box-shadow 200ms ease-out;
+}
+
+.verse-graph-node:hover {
+	border-color: var(--background-modifier-border-hover);
+}
+
+.verse-graph-node.is-testament {
+	font-weight: var(--font-semibold);
+	background-color: var(--background-secondary);
+	border-color: transparent;
+}
+
+.verse-graph-node.is-book {
+	font-weight: var(--font-semibold);
+}
+
+.verse-graph-node.is-verse {
+	font-weight: var(--font-semibold);
+	color: var(--text-accent);
+	border-color: var(--vg-accent);
+}
+
+.verse-graph-node.is-lit {
+	border: 1.5px solid var(--vg-accent);
+}
+
+.verse-graph-node.is-selected {
+	border: 2px solid var(--vg-accent);
+	box-shadow: 0 0 0 3px var(--vg-ring);
+}
+
+.verse-graph-node.is-lit:not(.is-testament),
+.verse-graph-node.is-selected {
+	background-color: var(--vg-lit);
+}
+
+.verse-graph-node.is-dimmed {
+	opacity: 0.35;
+}
+
+.verse-graph-chevron {
+	flex: none;
+	width: 0.75rem;
+	margin-inline-start: -0.25rem;
+	text-align: center;
 	color: var(--text-muted);
 }
 
-.verse-graph .verse-graph-level {
-	margin-left: var(--size-4-4);
+.verse-graph-label {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.verse-graph-detail,
+.verse-graph-count {
+	flex: none;
+	color: var(--text-muted);
+	font-family: var(--font-monospace);
+	font-variant-numeric: tabular-nums;
+	font-weight: normal;
+}
+
+.verse-graph-count {
+	margin-inline-start: auto;
+	padding-inline-start: 0.25rem;
+}
+
+/* Zoomed far out, the boxes carry their names only. */
+.verse-graph-canvas.is-thin .verse-graph-detail,
+.verse-graph-canvas.is-thin .verse-graph-count {
+	display: none;
+}
+
+.verse-graph-more {
+	position: absolute;
+	height: auto;
+	padding: 0.25rem 0.625rem;
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	background-color: var(--background-secondary);
+	box-shadow: none;
+}
+
+/* The toolbar, over the top right of the canvas */
+
+.verse-graph-toolbar {
+	position: absolute;
+	top: var(--size-4-3);
+	right: var(--size-4-3);
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--size-2-2);
+	max-width: calc(100% - 2 * var(--size-4-3));
+	padding: var(--size-2-2);
+	cursor: default;
+	background-color: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	box-shadow: var(--shadow-s);
+}
+
+.verse-graph-toolbar button {
+	height: auto;
+	min-height: 2rem;
+	min-width: 2rem;
+	padding: 0 var(--size-4-2);
+	font-size: var(--font-ui-small);
+	background: transparent;
+	box-shadow: none;
+}
+
+.verse-graph-toolbar button:hover:not(:disabled) {
+	background-color: var(--background-modifier-hover);
+}
+
+.verse-graph-toolbar button:disabled {
+	color: var(--text-faint);
+	cursor: not-allowed;
+}
+
+.verse-graph-toolbar button.is-active {
+	color: var(--text-accent);
+	background-color: var(--vg-lit);
+}
+
+.verse-graph-percent {
+	min-width: 3rem;
+	text-align: center;
+	color: var(--text-muted);
+	font-family: var(--font-monospace);
+	font-size: var(--font-ui-small);
+	font-variant-numeric: tabular-nums;
+}
+
+.verse-graph-divider {
+	width: 1px;
+	height: 1.25rem;
+	margin: 0 var(--size-2-2);
+	background-color: var(--background-modifier-border);
+}
+
+.verse-graph-hint {
+	position: absolute;
+	left: var(--size-4-3);
+	bottom: var(--size-4-3);
+	padding: var(--size-2-2) var(--size-4-2);
+	pointer-events: none;
+	color: var(--text-muted);
+	font-family: var(--font-monospace);
+	font-size: var(--font-ui-smaller);
+	background-color: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+}
+
+.verse-graph-canvas.is-empty .verse-graph-hint {
+	display: none;
+}
+
+.verse-graph-empty {
+	max-width: 28rem;
+	margin: 8rem auto 0;
+	padding: var(--size-4-6);
+	cursor: default;
+	background-color: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-l);
+	box-shadow: var(--shadow-s);
+}
+
+.verse-graph-empty h3 {
+	margin-top: 0;
+}
+
+/* The chosen note's read-only panel */
+
+.verse-graph-panel {
+	flex: none;
+	display: flex;
+	flex-direction: column;
+	width: clamp(380px, 30%, 640px);
+	min-height: 0;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	background-color: var(--background-primary);
+}
+
+.verse-graph-panel-bar,
+.verse-graph-panel-foot {
+	flex: none;
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2);
+	padding: var(--size-4-2) var(--size-4-3);
+}
+
+.verse-graph-panel-bar {
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.verse-graph-panel-foot {
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.verse-graph-panel-foot .verse-graph-muted {
+	flex: 1;
+}
+
+.verse-graph-panel-kind {
+	padding: 0 var(--size-4-2);
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	font-weight: var(--font-semibold);
+}
+
+.verse-graph-back {
+	width: auto;
+	font-size: var(--font-ui-small);
+}
+
+.verse-graph-spacer {
+	flex: 1;
+}
+
+.verse-graph-panel-body {
+	flex: 1;
+	min-height: 0;
+	overflow-y: auto;
+}
+
+.verse-graph-panel-head {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-4-2);
+	padding: var(--size-4-5);
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.verse-graph-panel-head h2 {
+	margin: 0;
+}
+
+.verse-graph-panel-date,
+.verse-graph-panel-cites,
+.verse-graph-muted {
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+}
+
+.verse-graph-panel-cites {
+	font-weight: var(--font-semibold);
+}
+
+.verse-graph-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--size-2-3);
+}
+
+.verse-graph-chip {
+	height: auto;
+	padding: var(--size-2-1) var(--size-4-2);
+	color: var(--text-accent);
+	font-size: var(--font-ui-small);
+}
+
+.verse-graph-panel-page {
+	padding: var(--size-4-2) var(--size-4-5) var(--size-4-5);
+}
+
+/* The paragraph citing the selected verse. */
+.verse-graph-landed {
+	margin-inline: calc(-1 * var(--size-4-3));
+	padding: var(--size-4-2) var(--size-4-3);
+	border-radius: var(--radius-s);
+	background-color: var(--vg-lit);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.verse-graph-node,
+	.verse-graph-line {
+		transition: none;
+	}
+}
+
+.verse-graph-node.is-category {
+	font-weight: var(--font-medium);
+	background-color: var(--background-secondary);
 }

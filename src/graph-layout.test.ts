@@ -5,7 +5,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   GRAPH_COLUMNS,
+  GRAPH_COLUMN_ORDER,
   GRAPH_NODE_HEIGHT,
+  graphColumns,
   anchorFor,
   blendLayouts,
   curveBetween,
@@ -81,6 +83,65 @@ describe("the columns", () => {
       const before = GRAPH_COLUMNS[order[i - 1]];
       expect(GRAPH_COLUMNS[order[i]].x).toBeGreaterThan(before.x + before.width);
     }
+  });
+
+  it("are where item 8.2 put them while the categories column is off", () => {
+    expect(GRAPH_COLUMNS.book.x).toBe(14);
+    expect(GRAPH_COLUMNS.chapter.x).toBe(26);
+    expect(GRAPH_COLUMNS.verse.x).toBe(38.5);
+    expect(GRAPH_COLUMNS.entry.x).toBe(52.5);
+    expect(GRAPH_COLUMNS.category.width).toBe(0);
+  });
+
+  it("make room for the categories between Testament and Book when it is on (item 8.6)", () => {
+    const columns = graphColumns(true);
+    for (let i = 1; i < GRAPH_COLUMN_ORDER.length; i++) {
+      const before = columns[GRAPH_COLUMN_ORDER[i - 1]];
+      expect(columns[GRAPH_COLUMN_ORDER[i]].x).toBeGreaterThan(before.x + before.width);
+    }
+    // Every column right of it moves over by the same amount.
+    const shift = columns.book.x - GRAPH_COLUMNS.book.x;
+    expect(shift).toBeGreaterThan(columns.category.width);
+    expect(columns.entry.x - GRAPH_COLUMNS.entry.x).toBe(shift);
+  });
+});
+
+describe("layoutGraph with literary categories (item 8.6)", () => {
+  const grouped = buildGraphTree(
+    [row("Psalms", 23, 1, 1), row("Proverbs", 3, 5, 6), row("Isaiah", 40, 31, 31), row("John", 3, 16, 16)],
+    { categories: true },
+  );
+  const open = (keys: string[]) => (key: string) => keys.includes(key);
+
+  it("hangs the books off their category, and the categories off the testament", () => {
+    const layout = layoutGraph(grouped, open(["old", "new", "category:wisdom", "category:major-prophets", "category:gospels"]));
+    expect(layout.byKey.get("Psalms")!.parentKey).toBe("category:wisdom");
+    expect(layout.byKey.get("category:wisdom")!.parentKey).toBe("old");
+    expect(layout.byKey.get("category:wisdom")!.column).toBe("category");
+    const y = (key: string) => layout.byKey.get(key)!.y;
+    expect(y("category:wisdom")).toBe((y("Psalms") + y("Proverbs")) / 2);
+    expect(y("old")).toBe((y("category:wisdom") + y("category:major-prophets")) / 2);
+  });
+
+  it("gives a closed category one row and draws nothing to its right", () => {
+    const layout = layoutGraph(grouped, open(["old", "new"]));
+    expect(layout.nodes.map((n) => n.key).sort()).toEqual(
+      ["category:gospels", "category:major-prophets", "category:wisdom", "new", "old"].sort(),
+    );
+    expect(layout.treeHeight).toBe(rowTop(3));
+  });
+
+  it("is wider, by the categories column, and says where its columns are", () => {
+    const flat = layoutGraph(tree);
+    const layout = layoutGraph(grouped);
+    expect(layout.columns).toEqual(graphColumns(true));
+    expect(flat.columns).toEqual(GRAPH_COLUMNS);
+    expect(layout.width - flat.width).toBe(layout.columns.book.x - flat.columns.book.x);
+  });
+
+  it("lands a line on the category while it is closed, before the testament", () => {
+    const layout = layoutGraph(grouped, open(["old", "new"]));
+    expect(anchorFor(layout, { book: "Psalms", chapter: 23 }, "Psalms|23|1|1")!.key).toBe("category:wisdom");
   });
 });
 

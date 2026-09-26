@@ -3,6 +3,8 @@ import { VERSE_GRAPH_VIEW, VerseGraphView } from '../ui/verse-graph-view';
 
 export function registerAll(plugin: Plugin): void {
 	plugin.registerView(VERSE_GRAPH_VIEW, (leaf) => new VerseGraphView(leaf));
+	// Hovering a note in the graph shows Obsidian's page preview; set in Page preview's settings.
+	plugin.registerHoverLinkSource(VERSE_GRAPH_VIEW, { display: 'Verse Graph', defaultMod: true });
 
 	plugin.addRibbonIcon('git-fork', 'Open verse graph', () => void openVerseGraph(plugin));
 	plugin.addCommand({

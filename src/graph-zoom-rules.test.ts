@@ -10,6 +10,7 @@ import {
   MIN_ZOOM,
   ZOOM_STEP,
   bringIntoView,
+  centerView,
   clampZoom,
   fitView,
   keepInView,
@@ -183,6 +184,64 @@ describe("openingView", () => {
     expect(scale).toBe(OPENING_ZOOM);
     expect(pan.x * scale).toBe(FIT_MARGIN);
     expect(pan.y * scale).toBe(FIT_MARGIN);
+  });
+});
+
+describe("centerView -- Center (item 8.8)", () => {
+  const viewport = { width: 1048, height: 448 };
+  const inset = { top: 60, bottom: 0 };
+
+  it("keeps the zoom the reader is at", () => {
+    expect(centerView({ width: 500, height: 200 }, viewport, 0.6).scale).toBe(0.6);
+    expect(centerView({ width: 1100, height: 11000 }, viewport, 1.7).scale).toBe(1.7);
+  });
+
+  it("is the opening view itself at the opening zoom, for every kind of graph", () => {
+    const graphs = [
+      { width: 500, height: 200 }, // small: opens at 100%, centred
+      { width: 1100, height: 300 }, // fits below 100%
+      { width: 1100, height: 11000 }, // a real journal: 80% from the corner
+      { width: 300, height: 5000 }, // tall and narrow
+    ];
+    for (const content of graphs) {
+      for (const room of [viewport, { width: 390, height: 700 }]) {
+        const opening = openingView(content, room, inset);
+        const center = centerView(content, room, opening.scale, inset);
+        expect(center.scale).toBe(opening.scale);
+        expect(center.pan.x).toBeCloseTo(opening.pan.x, 6);
+        expect(center.pan.y).toBeCloseTo(opening.pan.y, 6);
+      }
+    }
+  });
+
+  it("centres a graph that fits whole at this zoom, clear of the toolbar", () => {
+    const content = { width: 500, height: 200 };
+    const { pan } = centerView(content, viewport, 0.5, inset);
+    // Drawn at 250 x 100: the same room either side, and under the toolbar.
+    expect(pan.x * 0.5).toBeCloseTo((1048 - 250) / 2, 6);
+    expect(pan.y * 0.5).toBeCloseTo(60 + (448 - 60 - 100) / 2, 6);
+  });
+
+  it("puts the top-left corner in the corner once the graph no longer fits", () => {
+    // Fits at 50% and not at 200%, where it is 400 tall in 388: zooming in is
+    // what lost it.
+    const content = { width: 500, height: 200 };
+    const { pan } = centerView(content, viewport, 2, inset);
+    expect(pan.x * 2).toBeCloseTo(FIT_MARGIN, 6);
+    expect(pan.y * 2).toBeCloseTo(60 + FIT_MARGIN, 6);
+  });
+
+  it("pins both axes when only one does not fit, as the screen opens a tall tree", () => {
+    // 300 wide fits across 1048 easily; 5000 tall does not fit 448.
+    const { pan } = centerView({ width: 300, height: 5000 }, viewport, 0.8);
+    expect(pan.x * 0.8).toBeCloseTo(FIT_MARGIN, 6);
+    expect(pan.y * 0.8).toBeCloseTo(FIT_MARGIN, 6);
+  });
+
+  it("treats the zoom Fit chose as fitting, not as a rounding error away from it", () => {
+    const content = { width: 1100, height: 300 };
+    const fit = fitView(content, viewport, inset);
+    expect(centerView(content, viewport, fit.scale, inset)).toEqual(fit);
   });
 });
 

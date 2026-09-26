@@ -1,11 +1,9 @@
 {
-	"id": "sample-plugin",
-	"name": "Sample Plugin",
-	"version": "1.0.0",
-	"minAppVersion": "1.0.0",
-	"description": "Demonstrates some of the capabilities of the Obsidian API.",
-	"author": "Obsidian",
-	"authorUrl": "https://obsidian.md",
-	"fundingUrl": "https://obsidian.md/pricing",
-	"isDesktopOnly": false
+	"id": "verse-graph",
+	"name": "Verse Graph",
+	"version": "0.1.0",
+	"minAppVersion": "1.11.0",
+	"description": "Draws the Bible verses your notes cite as a tree from testament to verse, beside the notes that cite them.",
+	"author": "Wesley Tullis",
+	"isDesktopOnly": true
 }

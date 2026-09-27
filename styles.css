@@ -281,6 +281,11 @@
 	box-shadow: var(--shadow-s);
 }
 
+/* Where a narrow graph's toolbar starts its second row; nothing on a wide one. */
+.verse-graph-toolbar-break {
+	display: none;
+}
+
 /* No control gets narrower than its words: the row wraps instead. */
 .verse-graph-toolbar > * {
 	flex: none;
@@ -648,14 +653,35 @@
 		position: relative;
 	}
 
-	/* Wrapped onto as many rows as it needs, as the app's phone toolbar is, never scrolled. */
+	/*
+	 * Two rows along the bottom, as the app's phone toolbar wraps: the zoom, then
+	 * the tree's controls. Tighter than on a wide graph so the second row fits a
+	 * phone, still 44px tall; the rows stand in for the dividers.
+	 */
 	.verse-graph-toolbar {
 		top: auto;
 		bottom: var(--size-4-2);
-		left: auto;
+		left: var(--size-4-2);
 		right: var(--size-4-2);
-		max-width: calc(100% - 2 * var(--size-4-2));
-		justify-content: flex-end;
+		max-width: none;
+		justify-content: center;
+		row-gap: 0;
+		column-gap: var(--size-2-1);
+	}
+
+	.verse-graph-toolbar-break {
+		display: block;
+		flex-basis: 100%;
+		height: 0;
+	}
+
+	.verse-graph-toolbar .verse-graph-divider {
+		display: none;
+	}
+
+	.verse-graph-toolbar button {
+		padding: 0 var(--size-4-1);
+		font-size: var(--font-ui-smaller);
 	}
 
 	/* The sheet's bar lies along the bottom; the toolbar sits above it. */

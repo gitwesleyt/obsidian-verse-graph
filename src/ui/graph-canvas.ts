@@ -97,6 +97,8 @@ export class GraphCanvas {
 		const center = button('', () => this.attached()?.center(this.hiding), 'Center the graph');
 		setIcon(center, 'crosshair');
 		divider();
+		// On a narrow graph the toolbar is two rows: the zoom above, the tree's controls below.
+		this.toolbar.createDiv({ cls: 'verse-graph-toolbar-break' });
 		const lines = button('Show all lines', () => {
 			this.showAllLines = !this.showAllLines;
 			this.redraw();

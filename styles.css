@@ -281,6 +281,11 @@
 	box-shadow: var(--shadow-s);
 }
 
+/* No control gets narrower than its words: the row wraps instead. */
+.verse-graph-toolbar > * {
+	flex: none;
+}
+
 .verse-graph-toolbar button {
 	height: auto;
 	min-height: 2rem;
@@ -643,15 +648,14 @@
 		position: relative;
 	}
 
+	/* Wrapped onto as many rows as it needs, as the app's phone toolbar is, never scrolled. */
 	.verse-graph-toolbar {
 		top: auto;
 		bottom: var(--size-4-2);
-		left: var(--size-4-2);
+		left: auto;
 		right: var(--size-4-2);
-		max-width: none;
-		flex-wrap: nowrap;
-		justify-content: safe center;
-		overflow-x: auto;
+		max-width: calc(100% - 2 * var(--size-4-2));
+		justify-content: flex-end;
 	}
 
 	/* The sheet's bar lies along the bottom; the toolbar sits above it. */

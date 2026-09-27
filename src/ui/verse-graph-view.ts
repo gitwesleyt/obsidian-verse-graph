@@ -7,6 +7,7 @@ import {
 	clearSelection,
 	columnHeading,
 	columnOf,
+	followRename,
 	hidePanel,
 	keepSelection,
 	opensFor,
@@ -101,9 +102,18 @@ export class VerseGraphView extends ItemView {
 
 		// A graph left open at quit reopens at launch, maybe before the link index is
 		// complete: draw what is there once the layout is ready, and again on `resolved`.
+		// The metadata cache sends no `changed` for a rename or a delete, so those are
+		// listened for too, through the same pause.
 		this.app.workspace.onLayoutReady(() => {
 			this.rebuild();
 			this.registerEvent(this.app.metadataCache.on('resolved', () => this.rebuildSoon()));
+			this.registerEvent(
+				this.app.vault.on('rename', (file, oldPath) => {
+					this.selection = followRename(this.selection, oldPath, file.path);
+					this.rebuildSoon();
+				}),
+			);
+			this.registerEvent(this.app.vault.on('delete', () => this.rebuildSoon()));
 		});
 	}
 

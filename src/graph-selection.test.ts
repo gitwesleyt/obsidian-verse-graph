@@ -6,6 +6,7 @@ import {
 	clearSelection,
 	columnHeading,
 	columnOf,
+	followRename,
 	hidePanel,
 	keepSelection,
 	opensFor,
@@ -113,6 +114,14 @@ describe('keeping a selection when the vault changes', () => {
 			entryId: null,
 			panelShowing: false,
 		});
+	});
+});
+
+describe('followRename', () => {
+	it('keeps a renamed note chosen, and leaves any other selection alone', () => {
+		const chosen: Selection = { verse: PSALM_23, entryId: 'A.md', panelShowing: true };
+		expect(followRename(chosen, 'A.md', 'Journal/A.md')).toEqual({ ...chosen, entryId: 'Journal/A.md' });
+		expect(followRename(chosen, 'B.md', 'C.md')).toBe(chosen);
 	});
 });
 

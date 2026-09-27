@@ -72,9 +72,12 @@ export function vaultToGraph(index: LinkIndex, factsOf: (path: string) => NoteFa
 		}))
 		.sort(compareRanges);
 
-	entries.sort((a, b) => b.time - a.time || a.title.localeCompare(b.title));
+	entries.sort((a, b) => b.time - a.time || byTitle.compare(a.title, b.title));
 	return { rows, entries: entries.map(({ time: _time, ...entry }) => entry) };
 }
+
+/** One collator for the sort; `localeCompare` makes one per call, which shows on thousands of notes. */
+const byTitle = new Intl.Collator();
 
 /**
  * Every verse range a note cites, once each, in canonical order.
@@ -84,13 +87,31 @@ export function vaultToGraph(index: LinkIndex, factsOf: (path: string) => NoteFa
  * a real `John 3 16.md`, are one node.
  */
 function citedRanges(path: string, targets: string[]): VerseRange[] {
+	const note = parseBibleLink(path);
 	const ranges = new Map<string, VerseRange>();
 	for (const target of targets) {
-		const link = parseBibleLink(linkpathOf(target));
-		if (!link || isParentLink(path, link)) continue;
-		for (const range of rangesOf(link)) ranges.set(rangeKey(range), range);
+		const read = readTarget(target);
+		if (!read || isParentLink(note, read.link)) continue;
+		for (const range of read.ranges) ranges.set(rangeKey(range), range);
 	}
 	return [...ranges.values()].sort(compareRanges);
+}
+
+/**
+ * A link target's verses, remembered: the same few thousand targets come up on
+ * every rebuild. Links are read back from here, never changed, so sharing the
+ * ranges is safe.
+ */
+const targets = new Map<string, { link: BibleLink; ranges: VerseRange[] } | null>();
+
+function readTarget(target: string): { link: BibleLink; ranges: VerseRange[] } | null {
+	let read = targets.get(target);
+	if (read === undefined) {
+		const link = parseBibleLink(linkpathOf(target));
+		read = link ? { link, ranges: rangesOf(link) } : null;
+		targets.set(target, read);
+	}
+	return read;
 }
 
 /**
@@ -121,8 +142,7 @@ export function rangesOf(link: BibleLink): VerseRange[] {
  * `isParentLink` (src/context/find-mentions.ts), so other links written inside
  * a verse note still count.
  */
-function isParentLink(path: string, destination: BibleLink): boolean {
-	const note = parseBibleLink(path);
+function isParentLink(note: BibleLink | null, destination: BibleLink): boolean {
 	return (
 		destination.level === 'chapter' &&
 		note?.level === 'verse' &&

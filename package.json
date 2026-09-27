@@ -12,7 +12,8 @@
 		"test": "vitest run",
 		"check": "npm run build && npm run lint && npm test",
 		"release": "npm run check && gh release create \"$npm_package_version\" main.js manifest.json styles.css --verify-tag --title \"$npm_package_version\" --generate-notes",
-		"test-vault": "npm run build && node scripts/make-test-vault.mjs"
+		"test-vault": "npm run build && node scripts/make-test-vault.mjs",
+		"big-vault": "npm run build && node scripts/make-big-vault.mjs"
 	},
 	"keywords": [],
 	"license": "0-BSD",

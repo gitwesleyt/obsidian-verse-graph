@@ -1,37 +1,23 @@
-import { moment, setIcon } from 'obsidian';
-import {
-	GRAPH_NODE_HEIGHT,
-	GRAPH_ROW_PITCH,
-	anchorFor,
-	curveBetween,
-	entryRowTop,
-	layoutGraph,
-	type GraphColumn,
-	type GraphLayout,
-	type PlacedNode,
-} from '../graph-layout';
-import {
-	litPath,
-	rangeKey,
-	type GraphBookNode,
-	type GraphEntry,
-	type GraphTestamentNode,
-	type VerseRange,
-} from '../graph-rules';
+import { setIcon } from 'obsidian';
+import { GRAPH_NODE_HEIGHT, anchorFor, entryRowTop, layoutGraph, type GraphLayout } from '../graph-layout';
+import { litPath, rangeKey, type GraphEntry, type GraphTestamentNode, type VerseRange } from '../graph-rules';
+import { graphKeyAction, moveInTree, treeKeyEffect } from '../graph-key-rules';
 import { MAX_ZOOM, MIN_ZOOM, THIN_LABELS_BELOW, zoomPercent } from '../graph-zoom-rules';
-import { plural } from '../graph-selection';
+import { GraphDrawing, type Band } from './graph-drawing';
 import { CONTROL, PanZoom, type Sizes } from './pan-zoom';
 
 /**
- * The graph's canvas: the tree, the notes column, the lines between them, and
- * the toolbar, drawn from `layoutGraph` in `rem` as the web app's
- * `GraphCanvas.tsx` does. Boxes are positioned elements; lines are one SVG
- * behind them. Redrawn whole on every change, which is cheap because only
- * what is open is drawn.
+ * The graph's canvas: the moving surface with the drawing on it
+ * (`graph-drawing.ts`), and the toolbar over it. Lays the graph out with
+ * `layoutGraph`, sizes the surface to it, and leaves pan and zoom to
+ * `pan-zoom.ts`.
  */
 
 /** Room round the drawing inside the transformed element, in rem. */
 const PAD = 1;
+
+/** Screens' worth of rows drawn above and below the one showing, see `GraphDrawing`. */
+const OVERSCAN = 1;
 
 export type CanvasModel = {
 	tree: GraphTestamentNode[];
@@ -58,13 +44,10 @@ export type CanvasActions = {
 	hoverEntry(event: MouseEvent, el: HTMLElement, id: string): void;
 };
 
-type Kind = 'testament' | 'category' | 'book' | 'chapter' | 'verse' | 'entry';
-type Tone = 'rest' | 'faint' | 'lit';
-
 export class GraphCanvas {
 	readonly viewport: HTMLElement;
 	private readonly surface: HTMLElement;
-	private readonly drawing: HTMLElement;
+	private readonly drawing: GraphDrawing;
 	private readonly toolbar: HTMLElement;
 	private readonly controls: Record<'out' | 'in' | 'fit' | 'center' | 'lines' | 'expand' | 'collapse', HTMLButtonElement>;
 	private readonly percent: HTMLElement;
@@ -84,8 +67,9 @@ export class GraphCanvas {
 	) {
 		this.viewport = parent.createDiv({ cls: 'verse-graph-canvas', attr: { tabindex: '-1' } });
 		this.surface = this.viewport.createDiv({ cls: 'verse-graph-surface' });
-		this.drawing = this.surface.createDiv({ cls: 'verse-graph-drawing' });
-		this.drawing.setCssStyles({ left: `${PAD}rem`, top: `${PAD}rem` });
+		const drawing = this.surface.createDiv({ cls: 'verse-graph-drawing' });
+		drawing.setCssStyles({ left: `${PAD}rem`, top: `${PAD}rem` });
+		this.drawing = new GraphDrawing(drawing, { ...actions, focused: (key) => this.follow(key) }, () => this.near());
 
 		this.toolbar = this.viewport.createDiv({ cls: ['verse-graph-toolbar', CONTROL], attr: { role: 'toolbar' } });
 		const button = (text: string, onClick: () => void, label?: string) => {
@@ -119,6 +103,7 @@ export class GraphCanvas {
 		this.viewport.createDiv({ cls: 'verse-graph-hint', text: 'Scroll or drag to move · shift-scroll to zoom' });
 
 		this.showScale(1);
+		register(this.viewport, 'keydown', (event) => this.onKey(event));
 	}
 
 	render(model: CanvasModel): void {
@@ -137,6 +122,60 @@ export class GraphCanvas {
 		this.placed = true;
 	}
 
+	/**
+	 * The graph's keys, as the web app's (`graph-key-rules.ts`): the arrows,
+	 * Home and End walk the tree and the view follows; Enter or Space opens a
+	 * book or chapter or selects a verse; `+` `-` `0` `C` zoom, fit and center.
+	 * Only while the keyboard is in the graph, so they are never typing. Escape
+	 * is left to the view, which clears the selection from anywhere in it.
+	 */
+	private onKey(event: KeyboardEvent): void {
+		const treeKey = (event.target as HTMLElement).dataset.treeItem;
+		const action = graphKeyAction(event, treeKey !== undefined);
+		if (!action || action.kind === 'clear') return;
+		event.preventDefault();
+		const empty = !this.model || this.model.tree.length === 0;
+
+		switch (action.kind) {
+			case 'zoom':
+				if (!empty) this.attached()?.zoomStep(action.direction);
+				return;
+			case 'fit':
+				if (!empty) this.attached()?.fit();
+				return;
+			case 'center':
+				if (!empty) this.attached()?.center();
+				return;
+			case 'select':
+			case 'move': {
+				const node = treeKey ? this.drawing.nodeOf(treeKey) : null;
+				if (!treeKey || !node) return;
+				const effect = treeKeyEffect(action, node);
+				if (effect === 'open' || effect === 'close') this.actions.toggle(treeKey);
+				else if (effect === 'select') {
+					if (node.range) this.actions.selectVerse(node.range);
+				} else if (action.kind === 'move') {
+					this.drawing.focus(moveInTree(this.drawing.stops(), treeKey, action.to));
+				}
+				return;
+			}
+		}
+	}
+
+	/** Moves the view as little as it can to show a tree node the keyboard reached. */
+	private follow(key: string): void {
+		const placed = this.layout?.byKey.get(key);
+		if (!placed || !this.layout) return;
+		const rem = remPx();
+		const box = this.layout.columns[placed.column];
+		this.attached()?.showBox({
+			x: (box.x + PAD) * rem,
+			y: (placed.y + PAD) * rem,
+			width: box.width * rem,
+			height: GRAPH_NODE_HEIGHT * rem,
+		});
+	}
+
 	/** Keeps the chosen note on screen once its panel has taken room from the canvas. */
 	showEntry(id: string): void {
 		const index = this.model?.column.findIndex((item) => item.id === id) ?? -1;
@@ -145,13 +184,14 @@ export class GraphCanvas {
 		const box = this.layout.columns.entry;
 		this.attached()?.showBox({
 			x: (box.x + PAD) * rem,
-			y: (this.entryTop(index) + PAD) * rem,
+			y: (this.drawing.entryTop(index) + PAD) * rem,
 			width: box.width * rem,
 			height: GRAPH_NODE_HEIGHT * rem,
 		});
 	}
 
 	destroy(): void {
+		this.drawing.destroy();
 		this.panZoom?.destroy();
 		this.panZoom = null;
 	}
@@ -167,7 +207,10 @@ export class GraphCanvas {
 				this.surface,
 				() => this.sizes(),
 				this.register,
-				(scale) => this.showScale(scale),
+				(scale) => {
+					this.showScale(scale);
+					this.drawing.afterMove();
+				},
 				() => this.actions.clear(),
 			);
 		}
@@ -181,227 +224,31 @@ export class GraphCanvas {
 		this.layout = layout;
 
 		const column = model.column;
-		const besideY = this.besideTarget()?.y;
+		const beside = model.verse ? anchorFor(layout, model.verse, rangeKey(model.verse)) : undefined;
 		this.contentRem = {
 			width: layout.width + PAD * 2,
 			height:
-				Math.max(layout.treeHeight, entryRowTop(column.length + (model.moreCount > 0 ? 1 : 0), besideY)) + PAD * 2,
+				Math.max(layout.treeHeight, entryRowTop(column.length + (model.moreCount > 0 ? 1 : 0), beside?.y)) + PAD * 2,
 		};
 		this.surface.setCssStyles({ width: `${this.contentRem.width}rem`, height: `${this.contentRem.height}rem` });
-
-		this.drawing.empty();
-		const empty = model.tree.length === 0;
-		this.viewport.toggleClass('is-empty', empty);
 		this.updateToolbar();
-		if (empty) {
-			const card = this.drawing.createDiv({ cls: 'verse-graph-empty' });
-			card.createEl('h3', { text: 'No verses cited yet' });
-			card.createEl('p', {
-				text: 'Link a note to a verse note and the verse appears here. Converting plain references to links fills it in.',
-			});
-			return;
-		}
-
-		const lit = litPath(model.entry ? model.entry.cites : model.verse ? [model.verse] : []);
-		this.drawHeadings(model.columnHeading);
-		this.drawLines(layout, lit);
-		this.drawTree(layout, lit);
-		this.drawColumn();
+		this.drawing.show({
+			...model,
+			layout,
+			lit: litPath(model.entry ? model.entry.cites : model.verse ? [model.verse] : []),
+			showAllLines: this.showAllLines,
+		});
 		this.onResize();
 	}
 
-	private drawHeadings(entryHeading: string): void {
-		const columns = this.layout!.columns;
-		const withCategories = this.model!.tree.some((testament) => testament.categories);
-		const headings: [GraphColumn, string][] = [
-			['testament', 'Testament'],
-			...(withCategories ? [['category', 'Literary categories'] as [GraphColumn, string]] : []),
-			['book', 'Book'],
-			['chapter', 'Chapter'],
-			['verse', 'Verse'],
-			['entry', entryHeading],
-		];
-		for (const [column, text] of headings) {
-			const el = this.drawing.createDiv({ cls: 'verse-graph-heading', text });
-			el.setCssStyles({ left: `${columns[column].x}rem`, width: `${columns[column].width}rem` });
-		}
-	}
-
-	private drawLines(layout: GraphLayout, lit: Set<string>): void {
-		const model = this.model!;
-		const height = this.contentRem.height - PAD * 2;
-		const width = layout.width;
-		const svg = this.drawing.createSvg('svg', {
-			cls: 'verse-graph-lines',
-			attr: {
-				width: `${width}rem`,
-				height: `${height}rem`,
-				viewBox: `0 0 ${width} ${height}`,
-				'aria-hidden': 'true',
-			},
-		});
-		const line = (d: string, tone: Tone, dimmed = false) => {
-			svg.createSvg('path', {
-				cls: ['verse-graph-line', `is-${tone}`, ...(dimmed ? ['is-dimmed'] : [])],
-				attr: { d, 'vector-effect': 'non-scaling-stroke' },
-			});
-		};
-
-		const anySelected = lit.size > 0;
-		for (const node of layout.nodes) {
-			const parent = node.parentKey ? layout.byKey.get(node.parentKey) : undefined;
-			if (!parent) continue;
-			const on = lit.has(node.key);
-			line(curveBetween(parent, node, layout.columns), on ? 'lit' : 'rest', anySelected && !on);
-		}
-
-		// Two ranges hidden inside one closed book land on the same box: one line is enough.
-		const drawn = new Set<string>();
-		const toEntry = (prefix: string, range: VerseRange, index: number, tone: Tone) => {
-			const from = anchorFor(layout, range, rangeKey(range));
-			if (!from) return;
-			const key = `${prefix}:${from.key}:${index}`;
-			if (drawn.has(key)) return;
-			drawn.add(key);
-			line(curveBetween(from, { column: 'entry', y: this.entryTop(index) }, layout.columns), tone);
-		};
-
-		if (this.showAllLines) {
-			model.column.forEach((item, index) => item.cites.forEach((range) => toEntry('a', range, index, 'faint')));
-		}
-		const chosen = model.entry ? model.column.findIndex((item) => item.id === model.entry?.id) : -1;
-		if (model.entry && chosen !== -1) {
-			model.entry.cites.forEach((range) => toEntry('s', range, chosen, 'lit'));
-		} else if (model.verse) {
-			const verse = model.verse;
-			model.column.forEach((_, index) => toEntry('f', verse, index, 'lit'));
-		}
-	}
-
-	private drawTree(layout: GraphLayout, lit: Set<string>): void {
-		const model = this.model!;
-		const anySelected = lit.size > 0;
-		const selectedVerse = model.verse && !model.entry ? rangeKey(model.verse) : null;
-
-		const draw = (key: string, kind: Kind, label: string, count: number, onClick: () => void) => {
-			const placed = layout.byKey.get(key);
-			if (!placed) return;
-			const opens = kind !== 'verse';
-			const el = this.node(placed, kind, {
-				label,
-				count,
-				expanded: opens ? model.open.has(key) : undefined,
-				lit: lit.has(key) && key !== selectedVerse,
-				selected: key === selectedVerse,
-				dimmed: anySelected && !lit.has(key),
-			});
-			el.addEventListener('click', onClick);
-		};
-
-		const drawBook = (book: GraphBookNode) => {
-			draw(book.key, 'book', book.label, book.count, () => this.actions.toggle(book.key));
-			for (const chapter of book.chapters) {
-				draw(chapter.key, 'chapter', chapter.label, chapter.count, () => this.actions.toggle(chapter.key));
-				for (const verse of chapter.verses) {
-					draw(verse.key, 'verse', verse.label, verse.count, () => this.actions.selectVerse(verse.range));
-				}
-			}
-		};
-
-		for (const testament of model.tree) {
-			draw(testament.key, 'testament', testament.label, testament.count, () => this.actions.toggle(testament.key));
-			if (testament.categories) {
-				// The literary categories level, when the tree is built with it (the web app's item 8.6).
-				for (const category of testament.categories) {
-					draw(category.key, 'category', category.label, category.count, () => this.actions.toggle(category.key));
-					category.books.forEach(drawBook);
-				}
-			} else {
-				testament.books.forEach(drawBook);
-			}
-		}
-	}
-
-	private drawColumn(): void {
-		const model = this.model!;
-		model.column.forEach((item, index) => {
-			const isSelected = model.entry?.id === item.id;
-			const el = this.node({ column: 'entry', y: this.entryTop(index) }, 'entry', {
-				label: item.title,
-				detail: moment(item.entryDate).format('D MMM YYYY'),
-				count: item.cites.length,
-				countLabel: `cites ${plural(item.cites.length, 'verse', 'verses')}`,
-				selected: isSelected,
-				lit: !model.entry && model.verse !== null,
-				dimmed: model.entry !== null && !isSelected,
-			});
-			el.dataset.graphNode = `entry:${item.id}`;
-			el.addEventListener('click', () => this.actions.selectEntry(item.id));
-			el.addEventListener('mouseover', (event) => this.actions.hoverEntry(event, el, item.id));
-		});
-
-		if (model.moreCount > 0) {
-			const more = this.drawing.createEl('button', {
-				cls: 'verse-graph-more',
-				text: `↓ ${plural(model.moreCount, 'more note', 'more notes')}`,
-				attr: { 'data-graph-node': 'more' },
-			});
-			more.setCssStyles({
-				left: `${this.layout!.columns.entry.x}rem`,
-				top: `${this.entryTop(model.column.length) + (GRAPH_ROW_PITCH - GRAPH_NODE_HEIGHT) / 2}rem`,
-			});
-			more.addEventListener('click', () => this.actions.loadMore());
-		}
-	}
-
-	private node(
-		placed: { column: GraphColumn; y: number },
-		kind: Kind,
-		options: {
-			label: string;
-			count: number;
-			countLabel?: string;
-			detail?: string;
-			expanded?: boolean;
-			lit?: boolean;
-			selected?: boolean;
-			dimmed?: boolean;
-		},
-	): HTMLElement {
-		const el = this.drawing.createDiv({
-			cls: [
-				'verse-graph-node',
-				`is-${kind}`,
-				...(options.lit ? ['is-lit'] : []),
-				...(options.selected ? ['is-selected'] : []),
-				...(options.dimmed ? ['is-dimmed'] : []),
-			],
-			attr: { 'data-graph-node': placed.column === 'entry' ? '' : kind, role: 'button' },
-		});
-		const column = this.layout!.columns[placed.column];
-		el.setCssStyles({ left: `${column.x}rem`, top: `${placed.y}rem`, width: `${column.width}rem` });
-		if (options.detail) el.createSpan({ cls: 'verse-graph-detail', text: options.detail });
-		if (options.expanded !== undefined) {
-			el.createSpan({ cls: 'verse-graph-chevron', text: options.expanded ? '▾' : '▸' });
-			el.setAttr('aria-expanded', String(options.expanded));
-		}
-		el.createSpan({ cls: 'verse-graph-label', text: options.label });
-		el.createSpan({
-			cls: 'verse-graph-count',
-			text: String(options.count),
-			attr: options.countLabel ? { 'aria-label': options.countLabel } : {},
-		});
-		return el;
-	}
-
-	/** The selected verse's box, or the chapter or book hiding it, which the column starts level with. */
-	private besideTarget(): PlacedNode | undefined {
-		const verse = this.model?.verse;
-		return verse && this.layout ? anchorFor(this.layout, verse, rangeKey(verse)) : undefined;
-	}
-
-	private entryTop(index: number): number {
-		return entryRowTop(index, this.besideTarget()?.y);
+	/** The rows showing, and a screen either side, in rem from the drawing's top. */
+	private near(): Band {
+		const rem = remPx();
+		const height = this.viewport.clientHeight || window.innerHeight;
+		const scale = this.panZoom?.scale ?? 1;
+		const top = -(this.panZoom?.pan.y ?? 0) / rem - PAD;
+		const tall = height / scale / rem;
+		return { top: top - tall * OVERSCAN, bottom: top + tall * (1 + OVERSCAN) };
 	}
 
 	private updateToolbar(): void {
@@ -429,12 +276,13 @@ export class GraphCanvas {
 	private sizes(): Sizes {
 		const rem = remPx();
 		const box = this.viewport.getBoundingClientRect();
-		const bar = this.toolbar.getBoundingClientRect();
 		return {
 			content: { width: this.contentRem.width * rem, height: this.contentRem.height * rem },
 			viewport: { width: box.width, height: box.height },
 			// The toolbar sits over the top of the canvas; Fit and the opening view keep clear of it.
-			inset: { top: box.height > 0 ? bar.bottom - box.top : 0, bottom: 0 },
+			// Measured from layout rather than the screen, which a transform part-way through
+			// Obsidian opening the tab would throw off.
+			inset: { top: this.toolbar.offsetTop + this.toolbar.offsetHeight, bottom: 0 },
 		};
 	}
 }

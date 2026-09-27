@@ -135,6 +135,54 @@
 	border-color: var(--background-modifier-border-hover);
 }
 
+/* The node the keyboard is on. */
+.verse-graph-node:focus-visible {
+	outline: none;
+	box-shadow: 0 0 0 2px var(--background-modifier-border-focus);
+}
+
+/* Moving: a note's row glides to its new place in the column. */
+.verse-graph-node.is-entry {
+	transition:
+		top 220ms ease-out,
+		opacity 200ms ease-out,
+		border-color 200ms ease-out,
+		background-color 200ms ease-out,
+		box-shadow 200ms ease-out;
+}
+
+/* While an open or close slides, positions and fades are set every frame, so nothing trails behind them. */
+.verse-graph-surface.is-sliding .verse-graph-node,
+.verse-graph-surface.is-sliding .verse-graph-line {
+	transition:
+		border-color 200ms ease-out,
+		background-color 200ms ease-out,
+		box-shadow 200ms ease-out;
+}
+
+/* A box sliding back into its parent to vanish can't be clicked on the way. */
+.verse-graph-node.is-leaving {
+	pointer-events: none;
+}
+
+/* A note newly in the column fades in. */
+.verse-graph-node.is-entering {
+	animation: verse-graph-fade-in 200ms ease-out;
+}
+
+@keyframes verse-graph-fade-in {
+	from {
+		opacity: 0;
+	}
+}
+
+@keyframes verse-graph-slide-in {
+	from {
+		opacity: 0;
+		transform: translateX(1.5rem);
+	}
+}
+
 .verse-graph-node.is-testament {
 	font-weight: var(--font-semibold);
 	background-color: var(--background-secondary);
@@ -316,6 +364,7 @@
 	border: 1px solid var(--background-modifier-border);
 	border-radius: var(--radius-m);
 	background-color: var(--background-primary);
+	animation: verse-graph-slide-in 220ms ease-out;
 }
 
 .verse-graph-panel-bar,
@@ -359,6 +408,8 @@
 	flex: 1;
 	min-height: 0;
 	overflow-y: auto;
+	/* Another note chosen: the panel's page fades over. */
+	animation: verse-graph-fade-in 200ms ease-out;
 }
 
 .verse-graph-panel-head {
@@ -413,6 +464,12 @@
 	.verse-graph-node,
 	.verse-graph-line {
 		transition: none;
+	}
+
+	.verse-graph-node.is-entering,
+	.verse-graph-panel,
+	.verse-graph-panel-body {
+		animation: none;
 	}
 }
 

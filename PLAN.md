@@ -20,8 +20,8 @@ The first version draws the tree, lets you select, and opens notes. Anything tha
 | Command "Open verse graph" and a ribbon icon | Yes | How Obsidian plugins are opened |
 | Filters (books, reference, dates, tags) | No | 1–2 sessions; wait to see if they're missed |
 | Phone and tablet (pinch, flick, touch gestures) | No | The riskiest part; the plugin is marked desktop-only until then |
-| Slide animations, eased selection, flick glide | No | Polish; the logic is ready to bring over later |
-| Keyboard walking of the tree | No | Comes with the accessibility pass |
+| Slide animations and eased selection | Yes, since session 3 | You asked for them: without them you couldn't tell where things went. Flick glide waits for phone support, since it is for a finger |
+| Keyboard walking of the tree, and `+` `-` `0` `C` | Yes, since session 3 | The app's `graph-key-rules.ts`, copied |
 | Replay over time (item 8.3) | No | Not built in the app either |
 | Settings tab | No | Nothing needs setting yet |
 
@@ -95,6 +95,23 @@ Done when: the test vault's graph matches the web app's screen for the same refe
 
 Done when: editing a note updates the graph within a second, and opening the graph on your real vault takes under half a second.
 
+## Matching the web app's Wave 8
+
+The plugin is meant to end up with everything the web app's Graph screen does (`bible-journal-app/v3/V3-BUILD-PLAN.md`, Wave 8), built from copies of its rule files, never imports. Where each item stands:
+
+| Item | In the app | In the plugin | What's left |
+| --- | --- | --- | --- |
+| 8.1 Spike: what the graph reads | Merged | Done differently, session 1 | Nothing. The app queries its database; the plugin reads Obsidian's link index (`vaultToGraph`) |
+| 8.2 Tree, notes column, canvas, selection, pan and zoom, empty state, keyboard | Merged | Done, sessions 2–3 | Phone flick glide (`graph-glide-rules.ts`), with phone support |
+| 8.3 Replay over time | Not started | Not started | Follows the app, if the app builds it |
+| 8.4 Filters: books, a reference, a date range, tags, Reset | Merged | Not started | Session 4. Copy `graph-filter-rules.ts` and the `entry-filter-rules.ts` it needs. Tags are Obsidian's tags, from its in-memory cache, so the graph still never reads note text |
+| 8.5 Read-only note panel, and *Show in graph* from the editor | Merged | Panel done, session 2 | Session 4: a **Show in graph** command and note menu item for the open note. The app's `graph-address-rules.ts` (the chosen entry in the web address) becomes the view's saved state, so a reopened graph keeps its chosen note |
+| 8.6 Literary categories | Merged | Logic copied, switched off | Session 4: a settings tab with the **Literary categories** switch, off by default as in the app |
+| 8.7 Hide dimmed | Merged 2026-09-27 | Logic copied in session 3 (`onlyLit`) | Session 4: the toolbar toggle beside Expand and Collapse |
+| 8.8 Center | Merged | Done, session 2 | Nothing |
+
+**Session 4: Wave 8 parity.** Items 8.4, 8.5's *Show in graph*, 8.6's setting and 8.7's toggle, each checked side by side against the app. Replay waits for the app, and glide for phone support. If the app adds to Wave 8 later, the new item lands here as a row.
+
 ## Keeping Obsidian fast
 
 A badly built plugin freezes Obsidian rather than crashing it, or quietly shows stale data. These rules cover the ways this one could.
@@ -112,6 +129,11 @@ Session 3's 5,000-note timing check is what proves these rules hold, not what th
 
 ## Changes since the plan was written
 
+- **Session 3: opening and closing animate**, as in the web app: boxes and lines slide over 220 ms with the app's `blendLayouts`, lit and dimmed fade, a note's panel slides in. Under reduced motion it jumps.
+- **Session 3: only rows near the screen are drawn.** The plan's "only what's open is drawn" isn't enough once Expand opens every verse: on the 5,000-note vault that's some 11,000 boxes. The canvas now keeps rows within a screen of what shows in the page, and draws more as you pan.
+- **Session 3: keyboard walking of the tree**, from the app's `graph-key-rules.ts`: the arrows, Home and End move through the tree and the view follows; Enter or Space opens a book or chapter or selects a verse; `+` `-` `0` `C` zoom, fit and center. Keys work only while the keyboard is in the graph. Escape clears from anywhere in the view.
+- **Session 3: `graph-rules.ts` re-copied** for the app's item 8.7 (`onlyLit`, Hide dimmed), merged the same day.
+- **Session 3: renames and deletes are listened for.** `resolved` doesn't cover a rename, so the vault's `rename` and `delete` events go through the same 500 ms wait, and a chosen note stays chosen under its new name.
 - **Session 2: the read-only note panel stays** (item 8.5), instead of opening the note on click. It renders only the chosen note, so the graph itself still never reads note text.
 - **Session 2: the web app's item 8.6 (literary categories) came across with the copied files.** The canvas draws the category column when the tree has one, but it is off, as it is by default in the app. Turning it on needs a setting, which waits with the settings tab.
 - **Session 2: hover preview needs Cmd/Ctrl by default**, so panning over the notes column doesn't pop a preview on every note. It can be changed in **Settings → Page preview → Verse Graph**.

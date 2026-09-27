@@ -53,7 +53,8 @@ export class PanZoom {
 		surface: HTMLElement,
 		private readonly sizes: () => Sizes,
 		register: Register,
-		onScale: (scale: number) => void,
+		/** On every move and zoom, with the zoom it is at. */
+		onChange: (scale: number) => void,
 		onClickEmpty: () => void,
 	) {
 		this.pz = Panzoom(surface, {
@@ -65,7 +66,7 @@ export class PanZoom {
 			noBind: true,
 		});
 		surface.addEventListener('panzoomchange', (event) => {
-			onScale((event as CustomEvent<{ scale: number }>).detail.scale);
+			onChange((event as CustomEvent<{ scale: number }>).detail.scale);
 		});
 
 		let down: { point: Point; pan: Point; id: number } | null = null;
@@ -150,6 +151,11 @@ export class PanZoom {
 
 	get scale(): number {
 		return this.pz.getScale();
+	}
+
+	/** How far the graph is moved, in unscaled pixels. */
+	get pan(): Point {
+		return this.pz.getPan();
 	}
 
 	/** Where the graph opens: fitted to the room, up to a readable size. */

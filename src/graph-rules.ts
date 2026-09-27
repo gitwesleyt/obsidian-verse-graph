@@ -1,4 +1,4 @@
-// Copied from the Bible Journal web app (bible-journal-app/src/lib/graph-rules.ts) on 2026-09-26.
+// Copied from the Bible Journal web app (bible-journal-app/src/lib/graph-rules.ts) on 2026-09-27.
 // Only change: "@/lib/" imports made relative. Keep in step with the original rather than editing here.
 
 import {
@@ -314,6 +314,57 @@ export function litPath(ranges: readonly VerseRange[]): Set<string> {
     bookPath(range.book).forEach((key) => lit.add(key));
   }
   return lit;
+}
+
+/**
+ * The tree with only what a selection lights (item 8.7, the toolbar's *Hide
+ * dimmed*) -- **laid out again rather than left with holes**, so what is left
+ * closes up and fits on a screen. Everything else slides away into its parent
+ * the way a closed book's chapters do.
+ *
+ * **Counts are kept as they were**: Genesis still reads 21 with one of its
+ * chapters showing, because hiding changes what is on the canvas, not what is
+ * in the journal. **With nothing lit, the tree comes back whole** -- the toggle
+ * can be on with nothing selected, and waits for a selection. A category keeps
+ * the same book objects as its testament's `books`, as `buildGraphTree` does.
+ */
+export function onlyLit(
+  tree: readonly GraphTestamentNode[],
+  lit: ReadonlySet<string>,
+): readonly GraphTestamentNode[] {
+  if (lit.size === 0) return tree;
+
+  return tree
+    .filter((testament) => lit.has(testament.key))
+    .map((testament) => {
+      const books = new Map(
+        testament.books
+          .filter((book) => lit.has(book.key))
+          .map((book): [string, GraphBookNode] => [
+            book.key,
+            {
+              ...book,
+              chapters: book.chapters
+                .filter((chapter) => lit.has(chapter.key))
+                .map((chapter) => ({
+                  ...chapter,
+                  verses: chapter.verses.filter((verse) => lit.has(verse.key)),
+                })),
+            },
+          ]),
+      );
+      return {
+        ...testament,
+        books: [...books.values()],
+        categories:
+          testament.categories
+            ?.filter((category) => lit.has(category.key))
+            .map((category) => ({
+              ...category,
+              books: category.books.flatMap((book) => books.get(book.key) ?? []),
+            })) ?? null,
+      };
+    });
 }
 
 /**

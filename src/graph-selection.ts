@@ -94,6 +94,11 @@ export function keepSelection(
 	return selection;
 }
 
+/** A renamed or moved note stays chosen under its new path. */
+export function followRename(selection: Selection, oldPath: string, newPath: string): Selection {
+	return selection.entryId === oldPath ? { ...selection, entryId: newPath } : selection;
+}
+
 export function plural(count: number, one: string, many: string): string {
 	return `${count.toLocaleString()} ${count === 1 ? one : many}`;
 }

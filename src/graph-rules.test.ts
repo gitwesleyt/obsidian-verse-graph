@@ -1,4 +1,4 @@
-// Copied from the Bible Journal web app (bible-journal-app/src/lib/graph-rules.test.ts) on 2026-09-26.
+// Copied from the Bible Journal web app (bible-journal-app/src/lib/graph-rules.test.ts) on 2026-09-27.
 // Unchanged. Keep in step with the original rather than editing here.
 
 import { describe, expect, it } from "vitest";
@@ -13,6 +13,7 @@ import {
   openLevelsOf,
   chapterLabel,
   compareRanges,
+  onlyLit,
   litPath,
   rangeKey,
   rangeLabel,
@@ -143,6 +144,44 @@ describe("litPath", () => {
     expect([...lit].sort()).toEqual(
       [rangeKey(range), "Romans|8", "Romans", "category:pauline", "new"].sort(),
     );
+  });
+});
+
+describe("onlyLit (item 8.7)", () => {
+  const rows = [
+    row("Genesis", 1, 1, 1, 1),
+    row("Exodus", 3, 14, 14, 1),
+    row("Romans", 8, 28, 28, 1),
+    row("Romans", 8, 31, 31, 1),
+    row("Romans", 12, 1, 1, 1),
+    row("Galatians", 2, 20, 20, 1),
+  ];
+  const romans828 = { book: "Romans", chapter: 8, first: 28, last: 28 };
+
+  it("keeps only the lit path, down to the verse", () => {
+    const pruned = onlyLit(buildGraphTree(rows), litPath([romans828]));
+    expect(pruned.map((t) => t.key)).toEqual(["new"]);
+    expect(pruned[0].books.map((b) => b.key)).toEqual(["Romans"]);
+    expect(pruned[0].books[0].chapters.map((c) => c.key)).toEqual(["Romans|8"]);
+    expect(pruned[0].books[0].chapters[0].verses.map((v) => v.key)).toEqual([rangeKey(romans828)]);
+  });
+
+  it("keeps the counts the journal has, not what is left showing", () => {
+    const tree = buildGraphTree(rows);
+    const pruned = onlyLit(tree, litPath([romans828]));
+    expect(pruned[0].count).toBe(tree[1].count);
+    expect(pruned[0].books[0].count).toBe(3);
+  });
+
+  it("keeps a category's books the same objects as its testament's", () => {
+    const pruned = onlyLit(buildGraphTree(rows, { categories: true }), litPath([romans828]));
+    expect(pruned[0].categories?.map((c) => c.key)).toEqual(["category:pauline"]);
+    expect(pruned[0].categories?.[0].books[0]).toBe(pruned[0].books[0]);
+  });
+
+  it("gives the whole tree back with nothing lit", () => {
+    const tree = buildGraphTree(rows);
+    expect(onlyLit(tree, new Set())).toBe(tree);
   });
 });
 

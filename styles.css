@@ -726,3 +726,13 @@ body.is-mobile .verse-graph-panel-bar button {
 	min-height: 44px;
 	min-width: 44px;
 }
+
+/*
+ * Obsidian on a phone floats its navigation bar over the bottom of the screen,
+ * and says how much room it takes in --view-bottom-spacing. The graph ends
+ * above it, so the toolbar and the note's sheet along the bottom stay in reach.
+ * Where the bar doesn't float, the variable isn't set and nothing changes.
+ */
+body.is-phone .verse-graph {
+	padding-bottom: var(--view-bottom-spacing, 0px);
+}

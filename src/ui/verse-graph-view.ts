@@ -1,5 +1,5 @@
 import { ItemView, Notice, debounce, type ViewStateResult, type WorkspaceLeaf } from 'obsidian';
-import { CATEGORY_KEYS, buildGraphTree, collapseOneLevel, expandOneLevel, openLevelsOf, type GraphTestamentNode } from '../graph-rules';
+import { CATEGORY_KEYS, buildGraphTree, collapseAllLevels, expandAllLevels, collapseOneLevel, expandOneLevel, openLevelsOf, type GraphTestamentNode } from '../graph-rules';
 import {
 	COLUMN_PAGE,
 	NOTHING_SELECTED,
@@ -24,13 +24,22 @@ import {
 	type GraphReference,
 } from '../graph-filter-rules';
 import { dateFacets, filterGraph, opensForReference, tagCounts, unscopedCitations } from '../graph-filters';
+import {
+	nextShownStep,
+	replayStepMs,
+	replaySteps,
+	revealedThrough,
+	shownSteps,
+	type ReplayStep,
+} from '../graph-replay-rules';
 import { linkIndexOf, noteFactsOf, tagsOf } from '../obsidian-link-index';
 import type { VerseGraphSettings } from '../settings';
 import { readViewState, type ViewState } from '../view-state';
 import { vaultToGraph, type VaultGraph } from '../vault-graph';
 import { FilterBar } from './filter-bar';
 import type { FilterContext } from './filter-modals';
-import { GraphCanvas } from './graph-canvas';
+import { GraphCanvas, REPLAY_TITLE } from './graph-canvas';
+import { drawIcon } from './toolbar-icons';
 import { NotePanel } from './note-panel';
 
 export const VERSE_GRAPH_VIEW = 'verse-graph';
@@ -55,6 +64,10 @@ export class VerseGraphView extends ItemView {
 
 	private status!: HTMLElement;
 	private clearButton!: HTMLButtonElement;
+	private replayButton!: HTMLButtonElement;
+	/** Replay playing (the web app's item 8.3): its steps, the one on screen, and how long each is held. */
+	private replay: { steps: ReplayStep[]; at: number; stepMs: number } | null = null;
+	private replayTimer = 0;
 	private canvas: GraphCanvas | null = null;
 	private panel: NotePanel | null = null;
 	private readonly rebuildSoon = debounce(() => this.rebuild(), REBUILD_PAUSE_MS, true);
@@ -90,6 +103,13 @@ export class VerseGraphView extends ItemView {
 		const header = this.contentEl.createDiv({ cls: 'verse-graph-header' });
 		this.status = header.createDiv({ cls: 'verse-graph-status' });
 		this.clearButton = header.createEl('button', { text: 'Clear' });
+		// On a narrow graph Replay sits here, beside the summary, as in the app's phone header (G8c).
+		this.replayButton = header.createEl('button', {
+			cls: 'clickable-icon verse-graph-header-replay',
+			attr: { 'aria-label': REPLAY_TITLE },
+		});
+		drawIcon(this.replayButton, 'replay');
+		this.replayButton.addEventListener('click', () => this.toggleReplay());
 		this.clearButton.addEventListener('click', () => this.select(clearSelection(this.selection)));
 
 		this.filterBar = new FilterBar(this.contentEl, this.app, this.filterContext(), (reference) =>
@@ -109,8 +129,11 @@ export class VerseGraphView extends ItemView {
 					this.columnLength += COLUMN_PAGE;
 					this.draw();
 				},
-				expand: () => this.setOpen(expandOneLevel(this.openKeys, openLevelsOf(this.tree))),
-				collapse: () => this.setOpen(collapseOneLevel(this.openKeys, openLevelsOf(this.tree))),
+				expand: (all) =>
+					this.setOpen((all ? expandAllLevels : expandOneLevel)(this.openKeys, openLevelsOf(this.tree))),
+				collapse: (all) =>
+					this.setOpen((all ? collapseAllLevels : collapseOneLevel)(this.openKeys, openLevelsOf(this.tree))),
+				replay: () => this.toggleReplay(),
 				hoverEntry: (event, el, id) => this.hover(event, el, id, ''),
 				resetFilters: () => this.setFilters(NO_GRAPH_FILTERS),
 			},
@@ -148,6 +171,7 @@ export class VerseGraphView extends ItemView {
 
 	async onClose(): Promise<void> {
 		this.rebuildSoon.cancel();
+		window.clearTimeout(this.replayTimer);
 		this.canvas?.destroy();
 		this.panel?.clear();
 	}
@@ -234,6 +258,8 @@ export class VerseGraphView extends ItemView {
 
 	/** The graph again from `full`, through the filters, keeping what is still there selected. */
 	private applyFilters(): void {
+		// What the replay was drawing has changed under it.
+		this.stopReplay();
 		this.graph = filterGraph(this.full, this.filters, tagsOf(this.app));
 		this.tree = buildGraphTree(this.graph.rows, { categories: this.settings().literaryCategories });
 		this.selection = keepSelection(this.selection, this.graph.rows, this.graph.entries);
@@ -270,8 +296,55 @@ export class VerseGraphView extends ItemView {
 	}
 
 	private select(selection: Selection): void {
+		// Choosing a verse or a note stops a replay, leaving the graph complete.
+		if (selection.verse || selection.entryId) this.stopReplay();
 		this.selection = selection;
 		this.draw();
+	}
+
+	/**
+	 * Replay (the web app's item 8.3): one press draws the graph again in the
+	 * order the notes were written, a note's worth of verses a step, and leaves
+	 * it complete; a second press stops it. It plays what is open, from the
+	 * opening view at this zoom, and lets go of the selection, whose lines run
+	 * to a column it hides. Each next step is asked afresh, so opening a book
+	 * part-way through plays its verses from there on.
+	 */
+	private toggleReplay(): void {
+		if (this.replay) {
+			this.stopReplay();
+			this.draw();
+			return;
+		}
+		const isOpen = (key: string) => this.openKeys.has(key);
+		const steps = replaySteps(this.graph.rows, { categories: this.settings().literaryCategories });
+		const shown = shownSteps(steps, isOpen);
+		const first = shown[0];
+		if (first === undefined) return;
+		this.selection = NOTHING_SELECTED;
+		this.replay = { steps, at: first, stepMs: replayStepMs(shown.length) };
+		this.draw();
+		this.nextReplayStep();
+	}
+
+	private nextReplayStep(): void {
+		const replay = this.replay;
+		if (!replay) return;
+		this.replayTimer = window.setTimeout(() => {
+			const next = nextShownStep(replay.steps, replay.at, (key) => this.openKeys.has(key));
+			if (next === null) {
+				this.stopReplay();
+			} else {
+				replay.at = next;
+				this.nextReplayStep();
+			}
+			this.draw();
+		}, replay.stepMs);
+	}
+
+	private stopReplay(): void {
+		window.clearTimeout(this.replayTimer);
+		this.replay = null;
 	}
 
 	/** Choosing a note opens every book and chapter it cites, so its verses are on screen to be lit. */
@@ -323,6 +396,10 @@ export class VerseGraphView extends ItemView {
 			entry,
 			canExpand: levels.some((level) => level.some((key) => !this.openKeys.has(key))),
 			canCollapse: levels.some((level) => level.some((key) => this.openKeys.has(key))),
+			toolbarIcons: this.settings().toolbarIcons,
+			replay: this.replay
+				? { revealed: revealedThrough(this.replay.steps, this.replay.at), stepMs: this.replay.stepMs }
+				: null,
 			// The filters leave nothing, in a vault that has verses: said in the filters' own terms,
 			// never as an empty vault. The app's sentence says entries; the plugin's are notes.
 			nothingMatches:
@@ -336,6 +413,9 @@ export class VerseGraphView extends ItemView {
 		if (line.bold) this.status.createEl('strong', { text: line.bold });
 		this.status.appendText(line.rest);
 		this.clearButton.toggle(verse !== null || entryId !== null);
+		this.replayButton.toggleClass('is-playing', this.replay !== null);
+		this.replayButton.setAttr('aria-pressed', String(this.replay !== null));
+		this.replayButton.disabled = rows.length === 0;
 
 		const showing = panelShowing ? entry : null;
 		this.panel?.el.parentElement?.toggleClass('has-panel', showing !== null);

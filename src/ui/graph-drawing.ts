@@ -2,7 +2,6 @@ import { moment } from 'obsidian';
 import {
 	GRAPH_NODE_HEIGHT,
 	GRAPH_ROW_PITCH,
-	OPEN_CLOSE_MS,
 	anchorFor,
 	blendLayouts,
 	curveBetween,
@@ -52,6 +51,8 @@ export type Scene = {
 	showAllLines: boolean;
 	/** Why the filters left nothing to draw, or null. */
 	nothingMatches: string | null;
+	/** How long an open or close slides: shorter while Replay steps faster than that. */
+	slideMs: number;
 	/** Hide dimmed is taking away what `lit` leaves out, so no faint line runs to anything hidden. */
 	hiding: boolean;
 };
@@ -128,7 +129,7 @@ export class GraphDrawing {
 		this.slide = { from: this.blend, start: performance.now(), frame: 0 };
 		this.el.parentElement?.addClass('is-sliding');
 		const step = (now: number) => {
-			const t = easeOut((now - this.slide.start) / OPEN_CLOSE_MS);
+			const t = easeOut((now - this.slide.start) / scene.slideMs);
 			this.blend = blendLayouts(this.slide.from, scene.layout, t);
 			this.changing = true;
 			this.paint();

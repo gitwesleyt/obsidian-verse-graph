@@ -49,8 +49,8 @@ export type GraphVerseRow = VerseRange & {
   entryCount: number;
   /**
    * The earliest writer's-clock reading among them, as the database writes a
-   * `timestamp`. Nothing in 8.2 reads it; it is the order item 8.3's replay
-   * draws the nodes in.
+   * `timestamp` -- the order Replay draws the nodes in (item 8.3,
+   * `graph-replay-rules.ts`), and read by nothing else.
    */
   firstWritten: string;
 };
@@ -317,38 +317,40 @@ export function litPath(ranges: readonly VerseRange[]): Set<string> {
 }
 
 /**
- * The tree with only what a selection lights (item 8.7, the toolbar's *Hide
- * dimmed*) -- **laid out again rather than left with holes**, so what is left
- * closes up and fits on a screen. Everything else slides away into its parent
- * the way a closed book's chapters do.
+ * The tree with only the nodes `keep` names -- what a selection lights (item
+ * 8.7, the toolbar's *Hide dimmed*), or what a replay has drawn so far (item
+ * 8.3). **Laid out again rather than left with holes**, so what is left
+ * closes up; everything else slides away into its parent the way a closed
+ * book's chapters do.
  *
  * **Counts are kept as they were**: Genesis still reads 21 with one of its
- * chapters showing, because hiding changes what is on the canvas, not what is
- * in the journal. **With nothing lit, the tree comes back whole** -- the toggle
- * can be on with nothing selected, and waits for a selection. A category keeps
- * the same book objects as its testament's `books`, as `buildGraphTree` does.
+ * chapters showing, because this changes what is on the canvas, not what is
+ * in the journal. **With nothing to keep, the tree comes back whole** -- *Hide
+ * dimmed* can be on with nothing selected, and waits for a selection. A
+ * category keeps the same book objects as its testament's `books`, as
+ * `buildGraphTree` does.
  */
-export function onlyLit(
+export function keepOnly(
   tree: readonly GraphTestamentNode[],
-  lit: ReadonlySet<string>,
+  keep: ReadonlySet<string>,
 ): readonly GraphTestamentNode[] {
-  if (lit.size === 0) return tree;
+  if (keep.size === 0) return tree;
 
   return tree
-    .filter((testament) => lit.has(testament.key))
+    .filter((testament) => keep.has(testament.key))
     .map((testament) => {
       const books = new Map(
         testament.books
-          .filter((book) => lit.has(book.key))
+          .filter((book) => keep.has(book.key))
           .map((book): [string, GraphBookNode] => [
             book.key,
             {
               ...book,
               chapters: book.chapters
-                .filter((chapter) => lit.has(chapter.key))
+                .filter((chapter) => keep.has(chapter.key))
                 .map((chapter) => ({
                   ...chapter,
-                  verses: chapter.verses.filter((verse) => lit.has(verse.key)),
+                  verses: chapter.verses.filter((verse) => keep.has(verse.key)),
                 })),
             },
           ]),
@@ -358,7 +360,7 @@ export function onlyLit(
         books: [...books.values()],
         categories:
           testament.categories
-            ?.filter((category) => lit.has(category.key))
+            ?.filter((category) => keep.has(category.key))
             .map((category) => ({
               ...category,
               books: category.books.flatMap((book) => books.get(book.key) ?? []),
@@ -415,6 +417,20 @@ export function expandOneLevel(open: ReadonlySet<string>, levels: OpenLevels): S
     }
   }
   return next;
+}
+
+/**
+ * **Expand with Cmd or Ctrl held opens every level at once**, and Collapse
+ * with it closes every one -- the app owner's ask, the end each would reach
+ * pressed again and again. Keys outside `levels` are left as they were.
+ */
+export function expandAllLevels(open: ReadonlySet<string>, levels: OpenLevels): Set<string> {
+  return new Set([...open, ...levels.flat()]);
+}
+
+export function collapseAllLevels(open: ReadonlySet<string>, levels: OpenLevels): Set<string> {
+  const closing = new Set(levels.flat());
+  return new Set([...open].filter((key) => !closing.has(key)));
 }
 
 /**

@@ -8,12 +8,14 @@ import {
   bookPath,
   buildGraphTree,
   CATEGORY_KEYS,
+  collapseAllLevels,
   collapseOneLevel,
+  expandAllLevels,
   expandOneLevel,
   openLevelsOf,
   chapterLabel,
   compareRanges,
-  onlyLit,
+  keepOnly,
   litPath,
   rangeKey,
   rangeLabel,
@@ -147,7 +149,7 @@ describe("litPath", () => {
   });
 });
 
-describe("onlyLit (item 8.7)", () => {
+describe("keepOnly (item 8.7)", () => {
   const rows = [
     row("Genesis", 1, 1, 1, 1),
     row("Exodus", 3, 14, 14, 1),
@@ -159,7 +161,7 @@ describe("onlyLit (item 8.7)", () => {
   const romans828 = { book: "Romans", chapter: 8, first: 28, last: 28 };
 
   it("keeps only the lit path, down to the verse", () => {
-    const pruned = onlyLit(buildGraphTree(rows), litPath([romans828]));
+    const pruned = keepOnly(buildGraphTree(rows), litPath([romans828]));
     expect(pruned.map((t) => t.key)).toEqual(["new"]);
     expect(pruned[0].books.map((b) => b.key)).toEqual(["Romans"]);
     expect(pruned[0].books[0].chapters.map((c) => c.key)).toEqual(["Romans|8"]);
@@ -168,20 +170,20 @@ describe("onlyLit (item 8.7)", () => {
 
   it("keeps the counts the journal has, not what is left showing", () => {
     const tree = buildGraphTree(rows);
-    const pruned = onlyLit(tree, litPath([romans828]));
+    const pruned = keepOnly(tree, litPath([romans828]));
     expect(pruned[0].count).toBe(tree[1].count);
     expect(pruned[0].books[0].count).toBe(3);
   });
 
   it("keeps a category's books the same objects as its testament's", () => {
-    const pruned = onlyLit(buildGraphTree(rows, { categories: true }), litPath([romans828]));
+    const pruned = keepOnly(buildGraphTree(rows, { categories: true }), litPath([romans828]));
     expect(pruned[0].categories?.map((c) => c.key)).toEqual(["category:pauline"]);
     expect(pruned[0].categories?.[0].books[0]).toBe(pruned[0].books[0]);
   });
 
   it("gives the whole tree back with nothing lit", () => {
     const tree = buildGraphTree(rows);
-    expect(onlyLit(tree, new Set())).toBe(tree);
+    expect(keepOnly(tree, new Set())).toBe(tree);
   });
 });
 
@@ -281,6 +283,20 @@ describe("expanding and collapsing one level at a time", () => {
     expect([...once].sort()).toEqual([...levels[0], ...levels[1]].sort());
     const twice = expandOneLevel(once, levels);
     expect(twice).toEqual(everything);
+  });
+
+  it("with Cmd or Ctrl held, goes all the way at once -- where pressing again and again ends", () => {
+    expect(expandAllLevels(startingView, levels)).toEqual(everything);
+    expect(expandAllLevels(startingView, levels)).toEqual(
+      expandOneLevel(expandOneLevel(startingView, levels), levels),
+    );
+    expect(collapseAllLevels(everything, levels).size).toBe(0);
+  });
+
+  it("with Cmd or Ctrl held, leaves alone a key that is not a level of this tree", () => {
+    // A literary category's key stays open while the column is off (item 8.6).
+    const withCategory = new Set([...startingView, "category:wisdom"]);
+    expect(collapseAllLevels(withCategory, levels)).toEqual(new Set(["category:wisdom"]));
   });
 
   it("expand fills in a level only partly open before going deeper", () => {

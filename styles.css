@@ -284,9 +284,47 @@
 	box-shadow: var(--shadow-s);
 }
 
-/* Where a narrow graph's toolbar starts its second row; nothing on a wide one. */
-.verse-graph-toolbar-break {
+/* The app's icons for the toolbar's words: a narrow graph shows them instead. */
+.verse-graph-icon {
 	display: none;
+	width: var(--icon-size);
+	height: var(--icon-size);
+	margin: auto;
+}
+
+/*
+ * Settings' Toolbar icons (the app's item 8.9): the same icons on a wide graph,
+ * Replay's included. The zoom's percentage and the dividers stay, since a wide
+ * graph has the room and a row of icons needs the grouping more than words do.
+ */
+.verse-graph-toolbar.is-icons .verse-graph-icon {
+	display: block;
+}
+
+.verse-graph-toolbar.is-icons .verse-graph-word {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
+
+/* Replay in the header is a narrow graph's; a wide one has it last in the toolbar. */
+.verse-graph-header-replay {
+	display: none;
+}
+
+/* Replay playing: filled, as the app draws it, and still reading Replay. */
+.verse-graph-toolbar button.verse-graph-replay.is-playing,
+.verse-graph-header-replay.is-playing {
+	color: var(--text-on-accent);
+	background-color: var(--interactive-accent);
+}
+
+/* While Replay grows the tree, a box's count would be the whole vault's, so it waits for the end. */
+.verse-graph-canvas.is-replaying .verse-graph-count {
+	visibility: hidden;
 }
 
 /* No control gets narrower than its words: the row wraps instead. */
@@ -679,39 +717,46 @@
 	}
 
 	/*
-	 * Two rows along the bottom, as the app's phone toolbar wraps: the zoom, then
-	 * the tree's controls. Tighter than on a wide graph so the second row fits a
-	 * phone, still 44px tall; the rows stand in for the dividers.
+	 * One row along the bottom that scrolls sideways if it must, as the app's
+	 * phone toolbar is since item 8.3: its words become the app's icons, the zoom's
+	 * percentage and the dividers go, and Replay moves to the header. The words
+	 * stay in each button for a screen reader.
 	 */
 	.verse-graph-toolbar {
 		top: auto;
 		bottom: var(--size-4-2);
 		left: var(--size-4-2);
-		right: var(--size-4-2);
-		max-width: none;
-		justify-content: center;
-		row-gap: 0;
-		column-gap: var(--size-2-1);
+		right: auto;
+		max-width: calc(100% - 2 * var(--size-4-2));
+		flex-wrap: nowrap;
+		gap: 0;
+		padding: 2px;
+		overflow-x: auto;
+		/* The canvas takes every touch; this row scrolls sideways with a finger. */
+		touch-action: pan-x;
 	}
 
-	.verse-graph-toolbar-break {
-		display: block;
-		flex-basis: 100%;
-		height: 0;
-	}
-
-	.verse-graph-toolbar .verse-graph-divider {
+	.verse-graph-toolbar .verse-graph-divider,
+	.verse-graph-toolbar .verse-graph-replay {
 		display: none;
 	}
 
-	.verse-graph-toolbar button {
-		padding: 0 var(--size-4-1);
-		font-size: var(--font-ui-smaller);
+	.verse-graph-toolbar .verse-graph-icon {
+		display: block;
 	}
 
-	/* The sheet's bar lies along the bottom; the toolbar sits above it. */
-	.verse-graph-row.has-panel .verse-graph-toolbar {
-		bottom: calc(3.5rem + var(--size-4-2));
+	.verse-graph-toolbar .verse-graph-word,
+	.verse-graph-toolbar .verse-graph-percent {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
+	}
+
+	.verse-graph-header-replay {
+		display: flex;
 	}
 
 	.verse-graph-hint {

@@ -7,14 +7,23 @@ const VERSION = {
 	desc: 'The version of Verse Graph installed in this vault.',
 };
 
-const LITERARY_CATEGORIES = {
-	name: 'Literary categories',
-	desc: 'Groups books into their literary category, shown as a column between testament and book.',
-};
+/** The switches, in order, with the web app's words for them. */
+const SWITCHES: { key: keyof VerseGraphSettings; name: string; desc: string }[] = [
+	{
+		key: 'literaryCategories',
+		name: 'Literary categories',
+		desc: 'Groups books into their literary category, shown as a column between testament and book.',
+	},
+	{
+		key: 'toolbarIcons',
+		name: 'Toolbar icons',
+		desc: "Shows the graph's toolbar as icons instead of words, as it is on a phone. Point at an icon to see what it does.",
+	},
+];
 
 /**
  * Settings → Verse Graph. Declared, so Obsidian 1.13 and later draw it and
- * find it in the settings search; `display` draws the same switch on the
+ * find it in the settings search; `display` draws the same switches on the
  * older versions the manifest still allows.
  */
 export class VerseGraphSettingTab extends PluginSettingTab {
@@ -27,33 +36,34 @@ export class VerseGraphSettingTab extends PluginSettingTab {
 
 	getSettingDefinitions(): SettingDefinitionItem[] {
 		return [
-			{
-				...LITERARY_CATEGORIES,
-				control: { type: 'toggle', key: 'literaryCategories', defaultValue: false },
-			},
+			...SWITCHES.map(({ key, name, desc }) => ({
+				name,
+				desc,
+				control: { type: 'toggle' as const, key, defaultValue: false },
+			})),
 			{ ...VERSION, render: (setting) => this.showVersion(setting) },
 		];
 	}
 
 	/** Saves through the plugin, which also redraws every open graph. */
 	async setControlValue(key: string, value: unknown): Promise<void> {
-		if (key === 'literaryCategories' && typeof value === 'boolean') {
-			this.plugin.settings[key satisfies keyof VerseGraphSettings] = value;
-			await this.plugin.saveSettings();
-		}
+		const known = SWITCHES.find((toggle) => toggle.key === key);
+		if (!known || typeof value !== 'boolean') return;
+		this.plugin.settings[known.key] = value;
+		await this.plugin.saveSettings();
 	}
 
 	/** Obsidian before 1.13, which does not read `getSettingDefinitions`. */
 	display(): void {
 		this.containerEl.empty();
-		new Setting(this.containerEl)
-			.setName(LITERARY_CATEGORIES.name)
-			.setDesc(LITERARY_CATEGORIES.desc)
-			.addToggle((toggle) =>
-				toggle
-					.setValue(this.plugin.settings.literaryCategories)
-					.onChange((on) => this.setControlValue('literaryCategories', on)),
-			);
+		for (const { key, name, desc } of SWITCHES) {
+			new Setting(this.containerEl)
+				.setName(name)
+				.setDesc(desc)
+				.addToggle((toggle) =>
+					toggle.setValue(this.plugin.settings[key]).onChange((on) => this.setControlValue(key, on)),
+				);
+		}
 		this.showVersion(new Setting(this.containerEl).setName(VERSION.name).setDesc(VERSION.desc));
 	}
 

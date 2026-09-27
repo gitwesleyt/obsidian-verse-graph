@@ -1,10 +1,11 @@
 import { Platform, setIcon } from 'obsidian';
-import { GRAPH_NODE_HEIGHT, anchorFor, entryRowTop, layoutGraph, type GraphLayout } from '../graph-layout';
-import { litPath, onlyLit, rangeKey, type GraphEntry, type GraphTestamentNode, type VerseRange } from '../graph-rules';
+import { GRAPH_NODE_HEIGHT, OPEN_CLOSE_MS, anchorFor, entryRowTop, layoutGraph, type GraphLayout } from '../graph-layout';
+import { keepOnly, litPath, rangeKey, type GraphEntry, type GraphTestamentNode, type VerseRange } from '../graph-rules';
 import { graphKeyAction, moveInTree, treeKeyEffect } from '../graph-key-rules';
 import { MAX_ZOOM, MIN_ZOOM, THIN_LABELS_BELOW, zoomPercent, type Inset } from '../graph-zoom-rules';
 import { GraphDrawing, type Band } from './graph-drawing';
 import { CONTROL, PanZoom, type Sizes } from './pan-zoom';
+import { drawIcon, type ToolbarIcon } from './toolbar-icons';
 
 /**
  * The graph's canvas: the moving surface with the drawing on it
@@ -15,6 +16,12 @@ import { CONTROL, PanZoom, type Sizes } from './pan-zoom';
 
 /** Room round the drawing inside the transformed element, in rem. */
 const PAD = 1;
+
+/** The tooltip on Replay, here and in the view's header. */
+export const REPLAY_TITLE = 'Replay: draw the graph again in the order you wrote it';
+
+/** How the toolbar's tooltips name a Cmd-click, or a Ctrl-click off a Mac. */
+const MOD_CLICK = Platform.isMacOS ? '⌘-click' : 'Ctrl-click';
 
 /** Screens' worth of rows drawn above and below the one showing, see `GraphDrawing`. */
 const OVERSCAN = 1;
@@ -31,8 +38,12 @@ export type CanvasModel = {
 	entry: GraphEntry | null;
 	canExpand: boolean;
 	canCollapse: boolean;
+	/** Settings' Toolbar icons: icons on a wide graph too (the web app's item 8.9). */
+	toolbarIcons: boolean;
 	/** Why the filters left nothing to draw, or null. */
 	nothingMatches: string | null;
+	/** Replay is playing (the web app's item 8.3): what it has drawn so far, and how long a step is held. */
+	replay: { revealed: ReadonlySet<string>; stepMs: number } | null;
 };
 
 export type CanvasActions = {
@@ -41,8 +52,11 @@ export type CanvasActions = {
 	selectEntry(id: string): void;
 	clear(): void;
 	loadMore(): void;
-	expand(): void;
-	collapse(): void;
+	/** One level, or every level with `all`. */
+	expand(all: boolean): void;
+	collapse(all: boolean): void;
+	/** Starts Replay, or stops it. */
+	replay(): void;
 	hoverEntry(event: MouseEvent, el: HTMLElement, id: string): void;
 	resetFilters(): void;
 };
@@ -52,7 +66,7 @@ export class GraphCanvas {
 	private readonly surface: HTMLElement;
 	private readonly drawing: GraphDrawing;
 	private readonly toolbar: HTMLElement;
-	private readonly controls: Record<'out' | 'in' | 'fit' | 'center' | 'lines' | 'expand' | 'collapse' | 'hide', HTMLButtonElement>;
+	private readonly controls: Record<'out' | 'in' | 'fit' | 'center' | 'lines' | 'expand' | 'collapse' | 'hide' | 'replay', HTMLButtonElement>;
 	private readonly percent: HTMLElement;
 	/** Made the first time the canvas is in the page, which Panzoom requires; see `attached`. */
 	private panZoom: PanZoom | null = null;
@@ -66,6 +80,7 @@ export class GraphCanvas {
 	/** What Hide dimmed last closed the graph up round, and whether it is taking things away. */
 	private hidingFor: string | null = null;
 	private hiding = false;
+	private replaying = false;
 	/** The last drawing, for where the selection was before a change. */
 	private before: { layout: GraphLayout; column: GraphEntry[]; besideY: number | undefined } | null = null;
 	private placed = false;
@@ -82,46 +97,67 @@ export class GraphCanvas {
 		this.drawing = new GraphDrawing(drawing, { ...actions, focused: (key) => this.follow(key) }, () => this.near());
 
 		this.toolbar = this.viewport.createDiv({ cls: ['verse-graph-toolbar', CONTROL], attr: { role: 'toolbar' } });
-		const button = (text: string, onClick: () => void, label?: string) => {
-			const el = this.toolbar.createEl('button', { text, attr: label ? { 'aria-label': label } : {} });
+		// A button with words, and the app's icon for them that a narrow graph shows instead
+		// (item 8.3). The words stay in the button for a screen reader either way.
+		const button = (text: string, onClick: (event: MouseEvent) => void, label?: string, icon?: ToolbarIcon) => {
+			const el = this.toolbar.createEl('button', { attr: label ? { 'aria-label': label } : {} });
+			if (icon) drawIcon(el, icon);
+			el.createSpan({ cls: icon ? 'verse-graph-word' : '', text });
 			el.addEventListener('click', onClick);
 			return el;
 		};
 		const divider = () => this.toolbar.createSpan({ cls: 'verse-graph-divider' });
 
 		const out = button('−', () => this.attached()?.zoomStep('out'), 'Zoom out');
-		this.percent = this.toolbar.createSpan({ cls: 'verse-graph-percent' });
+		this.percent = this.toolbar.createSpan({ cls: 'verse-graph-percent', attr: { 'aria-live': 'polite' } });
 		const zoomIn = button('+', () => this.attached()?.zoomStep('in'), 'Zoom in');
 		divider();
-		const fit = button('Fit', () => this.attached()?.fit());
-		const center = button('', () => this.attached()?.center(this.hiding), 'Center the graph');
+		const fit = button('Fit', () => this.attached()?.fit(), 'Fit the whole graph on the canvas (0)', 'fit');
+		const center = button('', () => this.attached()?.center(this.hiding), 'Center the graph: back to where it opens, at this zoom (C)');
 		setIcon(center, 'crosshair');
 		divider();
-		// On a narrow graph the toolbar is two rows: the zoom above, the tree's controls below.
-		this.toolbar.createDiv({ cls: 'verse-graph-toolbar-break' });
-		const lines = button('Show all lines', () => {
-			this.showAllLines = !this.showAllLines;
-			this.redraw();
-		});
+		const lines = button(
+			'Show all lines',
+			() => {
+				this.showAllLines = !this.showAllLines;
+				this.redraw();
+			},
+			'Show all lines: every link between the verses and the notes in the column',
+			'lines',
+		);
 		divider();
-		const expand = button('Expand', () => this.actions.expand(), 'Open the next level: chapters, then verses');
+		// Collapse on the left and Expand on the right, as in the app (item 8.3). Cmd- or
+		// Ctrl-click goes all the way: either key on either machine.
 		const collapse = button(
 			'Collapse',
-			() => this.actions.collapse(),
-			'Close the deepest level open: verses, then chapters, then books',
+			(event) => this.actions.collapse(event.metaKey || event.ctrlKey),
+			`Close the deepest level open: verses, then chapters, then books. ${MOD_CLICK} closes every level`,
+			'collapse',
 		);
+		const expand = button(
+			'Expand',
+			(event) => this.actions.expand(event.metaKey || event.ctrlKey),
+			`Open the next level: chapters, then verses. ${MOD_CLICK} opens every level`,
+			'expand',
+		);
+		divider();
 		const hide = button(
 			'Hide dimmed',
 			() => {
 				this.hideDimmed = !this.hideDimmed;
 				this.redraw();
 			},
-			'With something selected, take away everything it dims',
+			'Hide everything a selection greys out, leaving only what it lights',
+			'hide',
 		);
-		// The two that stay on or off, rather than do something once: their tint is their feedback.
-		lines.addClass('is-toggle');
-		hide.addClass('is-toggle');
-		this.controls = { out, in: zoomIn, fit, center, lines, expand, collapse, hide };
+		// Last, as the design draws it; on a narrow graph it is in the header instead.
+		const replayDivider = divider();
+		replayDivider.addClass('verse-graph-replay-divider');
+		const replay = button('Replay', () => this.actions.replay(), REPLAY_TITLE, 'replay');
+		replay.addClass('verse-graph-replay');
+		// The ones that stay on or off, rather than do something once: their colour is their feedback.
+		for (const toggle of [lines, hide, replay]) toggle.addClass('is-toggle');
+		this.controls = { out, in: zoomIn, fit, center, lines, expand, collapse, hide, replay };
 
 		this.viewport.createDiv({
 			cls: 'verse-graph-hint',
@@ -252,20 +288,47 @@ export class GraphCanvas {
 		// what is lit, so what is left closes up, and the rest slides into its parent as
 		// a closed book's chapters do. Off, or with nothing selected, nothing changes.
 		const hiding = this.hideDimmed && lit.size > 0;
-		const layout = layoutGraph(hiding ? onlyLit(model.tree, lit) : model.tree, (key) => model.open.has(key));
+		// Replay lays out only what it has reached, the same way (`keepOnly`), so each
+		// new box grows out of its parent as opening a book does. The notes column and
+		// the counts wait for the end: the column is the newest notes and a count the
+		// whole vault's, while the replay runs from the oldest.
+		const replay = model.replay;
+		const isOpen = (key: string) => model.open.has(key);
+		const kept = replay ? keepOnly(model.tree, replay.revealed) : hiding ? keepOnly(model.tree, lit) : model.tree;
+		const layout = layoutGraph(kept, isOpen);
 		this.layout = layout;
-		const column = hiding && model.entry ? [model.entry] : model.column;
-		const moreCount = hiding ? 0 : model.moreCount;
+		const column = replay ? [] : hiding && model.entry ? [model.entry] : model.column;
+		const moreCount = replay || hiding ? 0 : model.moreCount;
 
+		// Sized to the finished graph while a replay grows, so keeping it on screen doesn't
+		// tug at the view as the drawing gets bigger.
+		const sized = replay ? layoutGraph(model.tree, isOpen) : layout;
 		const beside = model.verse ? anchorFor(layout, model.verse, rangeKey(model.verse)) : undefined;
 		this.contentRem = {
-			width: layout.width + PAD * 2,
-			height: Math.max(layout.treeHeight, entryRowTop(column.length + (moreCount > 0 ? 1 : 0), beside?.y)) + PAD * 2,
+			width: sized.width + PAD * 2,
+			height: Math.max(sized.treeHeight, entryRowTop(column.length + (moreCount > 0 ? 1 : 0), beside?.y)) + PAD * 2,
 		};
 		this.surface.setCssStyles({ width: `${this.contentRem.width}rem`, height: `${this.contentRem.height}rem` });
+		this.viewport.toggleClass('is-replaying', replay !== null);
+		this.toolbar.toggleClass('is-icons', model.toolbarIcons);
 		this.updateToolbar();
-		this.drawing.show({ ...model, column, moreCount, layout, lit, hiding, showAllLines: this.showAllLines });
+		this.drawing.show({
+			...model,
+			column,
+			moreCount,
+			columnHeading: replay ? '' : model.columnHeading,
+			layout,
+			lit,
+			hiding,
+			showAllLines: this.showAllLines,
+			// A replay's slide is never longer than its step, or boxes never land and pile up.
+			slideMs: replay ? Math.min(OPEN_CLOSE_MS, replay.stepMs) : OPEN_CLOSE_MS,
+		});
 		this.onResize();
+
+		// A replay starts where the graph opens, at this zoom (item 8.8's Center): the tree grows from its first branch.
+		if (replay && !this.replaying) window.requestAnimationFrame(() => this.attached()?.center());
+		this.replaying = replay !== null;
 
 		// Hide dimmed keeps the selection still and closes everything else up round it,
 		// as in the web app: when hiding comes on or goes off, or the selection changes
@@ -306,6 +369,10 @@ export class GraphCanvas {
 		this.controls.hide.disabled = empty;
 		this.controls.hide.toggleClass('is-active', this.hideDimmed);
 		this.controls.hide.setAttr('aria-pressed', String(this.hideDimmed));
+		const playing = model?.replay != null;
+		this.controls.replay.disabled = empty;
+		this.controls.replay.toggleClass('is-playing', playing);
+		this.controls.replay.setAttr('aria-pressed', String(playing));
 		this.controls.expand.disabled = empty || !model?.canExpand;
 		this.controls.collapse.disabled = empty || !model?.canCollapse;
 	}

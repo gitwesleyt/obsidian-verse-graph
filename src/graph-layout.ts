@@ -281,6 +281,9 @@ export type BlendedNode = PlacedNode & { opacity: number; leaving: boolean };
 
 export type Blend = Map<string, BlendedNode>;
 
+/** A leaving node fainter than this cannot be seen, and is dropped from the blend. */
+const GONE = 0.02;
+
 /** A layout at rest, as a blend: every node where it is, fully showing. */
 export function restingBlend(layout: GraphLayout): Blend {
   return new Map(
@@ -339,11 +342,16 @@ export function blendLayouts(from: Blend, to: GraphLayout, t: number): Blend {
   if (t < 1) {
     for (const [key, was] of from) {
       if (to.byKey.has(key)) continue;
+      const opacity = was.opacity * (1 - t);
+      // Faded to nothing is gone, whether or not its slide finished. A
+      // replay's steps (item 8.3) come faster than a slide, so a node waiting
+      // for `t` to reach 1 was carried, invisible, to the end of the replay.
+      if (opacity < GONE) continue;
       const home = ancestorIn(was.parentKey, (k) => from.get(k)?.parentKey ?? to.byKey.get(k)?.parentKey ?? null, to.byKey);
       blend.set(key, {
         ...was,
         y: lerp(was.y, home?.y ?? was.y),
-        opacity: was.opacity * (1 - t),
+        opacity,
         leaving: true,
       });
     }

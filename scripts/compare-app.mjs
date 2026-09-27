@@ -4,8 +4,14 @@
 // (or where BIBLE_JOURNAL_APP / SCRIPTURE_THREAD point), and nothing in the build
 // or the tests uses it. Changes nothing; re-copying stays a deliberate step.
 //
-//   npm run compare-app            which copies differ, and what the app has that isn't copied
-//   npm run compare-app -- --diff  the differences themselves
+//   npm run compare-app                 which copies differ, what the app has that isn't copied,
+//                                       and the app's graph commits since the plugin caught up
+//   npm run compare-app -- --diff       the differences themselves
+//   npm run compare-app -- --caught-up  records the app's latest commit as caught up with
+//
+// The commits matter because not everything the app decides is in a file copied here: the
+// order of the toolbar's buttons is in its screen code and spec/graph.md. The commit caught
+// up with is kept in app-caught-up.json.
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync, writeFileSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -16,6 +22,10 @@ const REPOS = {
 	'obsidian-scripture-thread': process.env.SCRIPTURE_THREAD ?? resolve('..', 'obsidian-scripture-thread'),
 };
 const SHOW_DIFF = process.argv.includes('--diff');
+const CAUGHT_UP = process.argv.includes('--caught-up');
+const MARKER = 'app-caught-up.json';
+/** What in the app is the graph: its screen, its rules, its spec and Wave 8's decisions. */
+const GRAPH_PATHS = ['src/app/journal/graph', 'src/lib/graph-*', 'spec/graph.md', 'v3/decisions/8.*', 'src/components/ui/icons.tsx'];
 const HEADER = /^\/\/ (Excerpt copied|Copied) from [^(]*\(([^/]+)\/([^)]+)\)/;
 
 /** The copy without its provenance header: the comment lines at the top and the blank line after. */
@@ -105,3 +115,24 @@ if (notCopied.length > 0) {
 	for (const path of notCopied) console.log(`  bible-journal-app/${path}`);
 }
 for (const repo of results.unreadable) console.log(`\nNot found, so not compared: ${repo} (expected at ${REPOS[repo] ?? '?'})`);
+
+// The app's graph commits since the plugin last caught up.
+const app = REPOS['bible-journal-app'];
+if (existsSync(join(app, '.git'))) {
+	const git = (...args) => execFileSync('git', ['-C', app, ...args], { encoding: 'utf8' }).trim();
+	const marker = existsSync(MARKER) ? JSON.parse(readFileSync(MARKER, 'utf8')) : {};
+	if (CAUGHT_UP) {
+		const head = git('rev-parse', '--short', 'HEAD');
+		writeFileSync(MARKER, `${JSON.stringify({ ...marker, 'bible-journal-app': head }, null, '\t')}\n`);
+		console.log(`\nCaught up with the web app at ${head}; ${MARKER} updated.`);
+	} else if (marker['bible-journal-app']) {
+		const since = marker['bible-journal-app'];
+		const log = git('log', '--reverse', '--format=%h %cs %s', `${since}..HEAD`, '--', ...GRAPH_PATHS);
+		if (log === '') console.log(`\nNo graph commits in the web app since ${since}.`);
+		else {
+			console.log(`\nGraph commits in the web app since ${since}, the last caught up with:`);
+			for (const line of log.split('\n')) console.log(`  ${line}`);
+			console.log('  Once they are dealt with: npm run compare-app -- --caught-up');
+		}
+	}
+}

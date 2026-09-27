@@ -1,4 +1,4 @@
-// Copied from the Bible Journal web app (bible-journal-app/src/lib/graph-layout.test.ts) on 2026-09-26.
+// Copied from the Bible Journal web app (bible-journal-app/src/lib/graph-layout.test.ts) on 2026-09-27.
 // Unchanged. Keep in step with the original rather than editing here.
 
 import { describe, expect, it } from "vitest";
@@ -216,6 +216,15 @@ describe("blendLayouts -- opening and closing, part-way", () => {
     const reversed = blendLayouts(halfway, closed, 0);
     expect(reversed.get("John")!.y).toBe(halfway.get("John")!.y);
     expect(reversed.get("Psalms|23")!.opacity).toBe(0.5);
+  });
+
+  it("drops a node that has faded to nothing, even when the next move cuts its slide short", () => {
+    // A replay's steps (item 8.3) arrive before a slide ends: each one starts
+    // from the last, so `t` never reaches 1 for what is leaving.
+    const nearlyGone = blendLayouts(restingBlend(psalmsOpen), closed, 0.99);
+    expect(nearlyGone.has("Psalms|139")).toBe(false);
+    const stillFading = blendLayouts(restingBlend(psalmsOpen), closed, 0.9);
+    expect(blendLayouts(stillFading, closed, 0.9).has("Psalms|139")).toBe(false);
   });
 });
 

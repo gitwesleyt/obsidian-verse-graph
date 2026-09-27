@@ -1,0 +1,4 @@
+{
+	"bible-journal-app": "2589f7b",
+	"note": "The web app commit this plugin has caught up with. `npm run compare-app` lists the app's graph commits since; `npm run compare-app -- --caught-up` moves this to the app's latest once they're dealt with."
+}

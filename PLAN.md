@@ -103,12 +103,13 @@ The plugin is meant to end up with everything the web app's Graph screen does (`
 | --- | --- | --- | --- |
 | 8.1 Spike: what the graph reads | Merged | Done differently, session 1 | Nothing. The app queries its database; the plugin reads Obsidian's link index (`vaultToGraph`) |
 | 8.2 Tree, notes column, canvas, selection, pan and zoom, empty state, keyboard | Merged | Done, sessions 2, 3 and 6 | Nothing. Session 6 added touch, the flick glide and the phone layout |
-| 8.3 Replay over time | Not started | Not started | Follows the app, if the app builds it |
+| 8.3 Replay | Merged 2026-09-27 | Done, session 7 | Nothing. Last in the toolbar, or in the header on a narrow graph |
 | 8.4 Filters: books, a reference, a date range, tags, Reset | Merged | Done, session 4 | Nothing. `graph-filter-rules.ts` copied; the filtering the app does in SQL is `graph-filters.ts`. Tags are Obsidian's, from its in-memory cache |
 | 8.5 Read-only note panel, and *Show in graph* from the editor | Merged | Done, sessions 2 and 4 | Nothing. **Show current note in graph** (command) and **Show in verse graph** (a note's menu). The chosen note is kept in the view's saved state, the plugin's version of the app's address |
 | 8.6 Literary categories | Merged | Done, session 4 | Nothing. **Settings → Verse Graph → Literary categories**, off by default |
 | 8.7 Hide dimmed | Merged 2026-09-27 | Done, sessions 4 and 5 | Nothing. Session 5 took in the app's later change: the selection stays still |
 | 8.8 Center | Merged | Done, session 2 | Nothing |
+| 8.9 Toolbar icons, a setting | Merged 2026-09-27 | Done, session 7 | Nothing. **Settings → Verse Graph → Toolbar icons**, off by default |
 
 **Session 4: Wave 8 parity.** Items 8.4, 8.5's *Show in graph*, 8.6's setting and 8.7's toggle, each checked side by side against the app. Replay waits for the app, and glide for phone support. If the app adds to Wave 8 later, the new item lands here as a row.
 
@@ -134,13 +135,21 @@ Wave 8 is done except Replay, and `0.2.0` is in your real vault (2026-09-27). Wh
 - **Not done: the Books sheet that stages** (the app's *Show 5 verses*). The pickers are Obsidian dialogs, which a phone shows full screen, and they apply as ticked, as on a computer.
 - **On the phone, BRAT needs the token in that device's own secret storage.** Obsidian's secret storage doesn't sync, so a vault synced from the computer brings BRAT's token *name* (`scripture-thread`) without the token; BRAT then gets a 404 from GitHub for both private repos until a secret of that name is added on the phone.
 
-**3. Following the app, as it changes.** Each lands as a row in the Wave 8 table:
+**3. Session 7: Replay, and the app's other changes of 2026-09-27. Done.**
 
-- **8.3 Replay**, if the app builds it.
+- **Replay (8.3)**: draws the graph again in the order the notes were written, a note's worth of verses a step, over about six seconds, from the opening view at this zoom, and leaves it complete; a second press stops it, and so does choosing a verse or a note or changing a filter. It plays what's open, so Expand first to watch the verses arrive. Counts and the notes column wait for the end. `graph-replay-rules.ts` copied; `onlyLit` is `keepOnly` in the app now, and the canvas follows.
+- **The narrow toolbar is the app's one row of icons**, scrolling sideways if a phone is too narrow for it, with Replay in the header. This replaces session 6's two rows of words, as the app replaced its own.
+- **Collapse is on the left and Expand on the right**, and **Cmd- or Ctrl-click on either goes all the way.**
+- **Toolbar icons (8.9)**: a switch in **Settings → Verse Graph**, off by default, that draws the toolbar as the phone's icons on a wide graph too, Replay's included, keeping the percentage and the dividers. Every control has the app's tooltip.
+- **`npm run compare-app` also lists the web app's graph commits** since the one in `app-caught-up.json`, because not every call is in a copied file: the Collapse and Expand swap was in the app's screen code, and was missed until you pointed it out. `-- --caught-up` moves the marker on.
+- **`graph-layout.ts` re-copied** for the app's fix that drops a box once it has faded to nothing, whether or not its slide finished.
+
+**4. Following the app, as it changes.** Each lands as a row in the Wave 8 table:
+
 - **TD-116** (`Proverbs 3:5, 6` drawn as the range `3:5–6`). The plugin does the same thing, in `rangesOf`, for the same reason. If the app fixes it, the fix comes across with the files.
 - Anything the app adds to its Graph screen.
 
-**4. Open decision: the web app's Wave 9, Calendar.** Month, year and decade views, with each day shaded by how much was written. It isn't the graph, so it doesn't belong in this plugin. The choice is:
+**5. Open decision: the web app's Wave 9, Calendar.** Month, year and decade views, with each day shaded by how much was written. It isn't the graph, so it doesn't belong in this plugin. The choice is:
 
 - **A second plugin** (`verse-calendar` or a broader name), built the same way: copy the app's rules once they exist, draw with Obsidian's theme. The year and decade heat maps are what Obsidian's existing calendar plugins don't do.
 - **Not at all**, and use an existing calendar plugin for the month view.

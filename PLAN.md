@@ -104,10 +104,10 @@ The plugin is meant to end up with everything the web app's Graph screen does (`
 | 8.1 Spike: what the graph reads | Merged | Done differently, session 1 | Nothing. The app queries its database; the plugin reads Obsidian's link index (`vaultToGraph`) |
 | 8.2 Tree, notes column, canvas, selection, pan and zoom, empty state, keyboard | Merged | Done, sessions 2–3 | Phone flick glide (`graph-glide-rules.ts`), with phone support |
 | 8.3 Replay over time | Not started | Not started | Follows the app, if the app builds it |
-| 8.4 Filters: books, a reference, a date range, tags, Reset | Merged | Not started | Session 4. Copy `graph-filter-rules.ts` and the `entry-filter-rules.ts` it needs. Tags are Obsidian's tags, from its in-memory cache, so the graph still never reads note text |
-| 8.5 Read-only note panel, and *Show in graph* from the editor | Merged | Panel done, session 2 | Session 4: a **Show in graph** command and note menu item for the open note. The app's `graph-address-rules.ts` (the chosen entry in the web address) becomes the view's saved state, so a reopened graph keeps its chosen note |
-| 8.6 Literary categories | Merged | Logic copied, switched off | Session 4: a settings tab with the **Literary categories** switch, off by default as in the app |
-| 8.7 Hide dimmed | Merged 2026-09-27 | Logic copied in session 3 (`onlyLit`) | Session 4: the toolbar toggle beside Expand and Collapse |
+| 8.4 Filters: books, a reference, a date range, tags, Reset | Merged | Done, session 4 | Nothing. `graph-filter-rules.ts` copied; the filtering the app does in SQL is `graph-filters.ts`. Tags are Obsidian's, from its in-memory cache |
+| 8.5 Read-only note panel, and *Show in graph* from the editor | Merged | Done, sessions 2 and 4 | Nothing. **Show current note in graph** (command) and **Show in verse graph** (a note's menu). The chosen note is kept in the view's saved state, the plugin's version of the app's address |
+| 8.6 Literary categories | Merged | Done, session 4 | Nothing. **Settings → Verse Graph → Literary categories**, off by default |
+| 8.7 Hide dimmed | Merged 2026-09-27 | Done, session 4 | Nothing |
 | 8.8 Center | Merged | Done, session 2 | Nothing |
 
 **Session 4: Wave 8 parity.** Items 8.4, 8.5's *Show in graph*, 8.6's setting and 8.7's toggle, each checked side by side against the app. Replay waits for the app, and glide for phone support. If the app adds to Wave 8 later, the new item lands here as a row.
@@ -129,6 +129,10 @@ Session 3's 5,000-note timing check is what proves these rules hold, not what th
 
 ## Changes since the plan was written
 
+- **Session 4: the filter pickers are Obsidian dialogs**, not the app's popovers: Books, Dates and Tags are modals that apply as you tick, as the app does at desktop width, and Reference is Obsidian's type-ahead suggester. A chip in use is filled and has an × of its own.
+- **Session 4: only three pieces of the app's `entry-filter-rules.ts` are copied** (`monthName`, `weekdayName`, `weekdayPlural`, `EntryFacet`), each unchanged. The rest of that file is Home's filter, with a chain of imports the plugin has no use for.
+- **Session 4: the "nothing matches" sentence says notes**, not entries: the app's sentence is used with that one word changed where it is shown.
+- **Session 4: *Show in graph* on a note the filters hide resets them**, rather than saying the note cites nothing.
 - **Session 3: opening and closing animate**, as in the web app: boxes and lines slide over 220 ms with the app's `blendLayouts`, lit and dimmed fade, a note's panel slides in. Under reduced motion it jumps.
 - **Session 3: only rows near the screen are drawn.** The plan's "only what's open is drawn" isn't enough once Expand opens every verse: on the 5,000-note vault that's some 11,000 boxes. The canvas now keeps rows within a screen of what shows in the page, and draws more as you pan.
 - **Session 3: keyboard walking of the tree**, from the app's `graph-key-rules.ts`: the arrows, Home and End move through the tree and the view follows; Enter or Space opens a book or chapter or selects a verse; `+` `-` `0` `C` zoom, fit and center. Keys work only while the keyboard is in the graph. Escape clears from anywhere in the view.

@@ -1,7 +1,8 @@
 import {
+	CATEGORY_KEYS,
+	bookPath,
 	rangeKey,
 	rangeLabel,
-	testamentOf,
 	type GraphEntry,
 	type GraphVerseRow,
 	type VerseRange,
@@ -26,8 +27,11 @@ export type Selection = {
 
 export const NOTHING_SELECTED: Selection = { verse: null, entryId: null, panelShowing: false };
 
-/** Both testaments open and every book closed, as the app opens. */
-export const OPENING_OPEN: readonly string[] = ['old', 'new'];
+/**
+ * Both testaments and every literary category open, and every book closed, as
+ * the app opens. A category key opens nothing while the categories are off.
+ */
+export const OPENING_OPEN: readonly string[] = ['old', 'new', ...CATEGORY_KEYS];
 
 /** How many notes the column shows before its "more" button, as the app pages them. */
 export const COLUMN_PAGE = 50;
@@ -72,9 +76,9 @@ export function columnOf(entries: readonly GraphEntry[], verse: VerseRange | nul
 	return entries.filter((entry) => entry.cites.some((range) => rangeKey(range) === key));
 }
 
-/** What has to be open for a note's verses to be on screen to be lit. */
+/** What has to be open for a note's verses to be on screen to be lit: testament, category, book and chapter. */
 export function opensFor(entry: GraphEntry): string[] {
-	return entry.cites.flatMap((range) => [testamentOf(range.book), range.book, `${range.book}|${range.chapter}`]);
+	return entry.cites.flatMap((range) => [...bookPath(range.book), `${range.book}|${range.chapter}`]);
 }
 
 /**

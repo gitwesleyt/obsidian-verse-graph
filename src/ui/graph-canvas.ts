@@ -1,6 +1,6 @@
 import { setIcon } from 'obsidian';
 import { GRAPH_NODE_HEIGHT, anchorFor, entryRowTop, layoutGraph, type GraphLayout } from '../graph-layout';
-import { litPath, rangeKey, type GraphEntry, type GraphTestamentNode, type VerseRange } from '../graph-rules';
+import { litPath, onlyLit, rangeKey, type GraphEntry, type GraphTestamentNode, type VerseRange } from '../graph-rules';
 import { graphKeyAction, moveInTree, treeKeyEffect } from '../graph-key-rules';
 import { MAX_ZOOM, MIN_ZOOM, THIN_LABELS_BELOW, zoomPercent } from '../graph-zoom-rules';
 import { GraphDrawing, type Band } from './graph-drawing';
@@ -31,6 +31,8 @@ export type CanvasModel = {
 	entry: GraphEntry | null;
 	canExpand: boolean;
 	canCollapse: boolean;
+	/** Why the filters left nothing to draw, or null. */
+	nothingMatches: string | null;
 };
 
 export type CanvasActions = {
@@ -42,6 +44,7 @@ export type CanvasActions = {
 	expand(): void;
 	collapse(): void;
 	hoverEntry(event: MouseEvent, el: HTMLElement, id: string): void;
+	resetFilters(): void;
 };
 
 export class GraphCanvas {
@@ -49,7 +52,7 @@ export class GraphCanvas {
 	private readonly surface: HTMLElement;
 	private readonly drawing: GraphDrawing;
 	private readonly toolbar: HTMLElement;
-	private readonly controls: Record<'out' | 'in' | 'fit' | 'center' | 'lines' | 'expand' | 'collapse', HTMLButtonElement>;
+	private readonly controls: Record<'out' | 'in' | 'fit' | 'center' | 'lines' | 'expand' | 'collapse' | 'hide', HTMLButtonElement>;
 	private readonly percent: HTMLElement;
 	/** Made the first time the canvas is in the page, which Panzoom requires; see `attached`. */
 	private panZoom: PanZoom | null = null;
@@ -58,6 +61,10 @@ export class GraphCanvas {
 	private layout: GraphLayout | null = null;
 	private contentRem = { width: 0, height: 0 };
 	private showAllLines = false;
+	/** The toolbar's Hide dimmed (the web app's item 8.7). */
+	private hideDimmed = false;
+	/** What Hide dimmed last closed the graph up round, to recentre when it changes. */
+	private hidingFor: string | null = null;
 	private placed = false;
 
 	constructor(
@@ -98,7 +105,15 @@ export class GraphCanvas {
 			() => this.actions.collapse(),
 			'Close the deepest level open: verses, then chapters, then books',
 		);
-		this.controls = { out, in: zoomIn, fit, center, lines, expand, collapse };
+		const hide = button(
+			'Hide dimmed',
+			() => {
+				this.hideDimmed = !this.hideDimmed;
+				this.redraw();
+			},
+			'With something selected, take away everything it dims',
+		);
+		this.controls = { out, in: zoomIn, fit, center, lines, expand, collapse, hide };
 
 		this.viewport.createDiv({ cls: 'verse-graph-hint', text: 'Scroll or drag to move · shift-scroll to zoom' });
 
@@ -220,25 +235,33 @@ export class GraphCanvas {
 	private redraw(): void {
 		const model = this.model;
 		if (!model) return;
-		const layout = layoutGraph(model.tree, (key) => model.open.has(key));
-		this.layout = layout;
+		const lit = litPath(model.entry ? model.entry.cites : model.verse ? [model.verse] : []);
 
-		const column = model.column;
+		// Hide dimmed, with something selected: the graph is laid out again with only
+		// what is lit, so what is left closes up, and the rest slides into its parent as
+		// a closed book's chapters do. Off, or with nothing selected, nothing changes.
+		const hiding = this.hideDimmed && lit.size > 0;
+		const layout = layoutGraph(hiding ? onlyLit(model.tree, lit) : model.tree, (key) => model.open.has(key));
+		this.layout = layout;
+		const column = hiding && model.entry ? [model.entry] : model.column;
+		const moreCount = hiding ? 0 : model.moreCount;
+
 		const beside = model.verse ? anchorFor(layout, model.verse, rangeKey(model.verse)) : undefined;
 		this.contentRem = {
 			width: layout.width + PAD * 2,
-			height:
-				Math.max(layout.treeHeight, entryRowTop(column.length + (model.moreCount > 0 ? 1 : 0), beside?.y)) + PAD * 2,
+			height: Math.max(layout.treeHeight, entryRowTop(column.length + (moreCount > 0 ? 1 : 0), beside?.y)) + PAD * 2,
 		};
 		this.surface.setCssStyles({ width: `${this.contentRem.width}rem`, height: `${this.contentRem.height}rem` });
 		this.updateToolbar();
-		this.drawing.show({
-			...model,
-			layout,
-			lit: litPath(model.entry ? model.entry.cites : model.verse ? [model.verse] : []),
-			showAllLines: this.showAllLines,
-		});
+		this.drawing.show({ ...model, column, moreCount, layout, lit, hiding, showAllLines: this.showAllLines });
 		this.onResize();
+
+		// What is left is somewhere else now: bring it back where the graph opens.
+		const hidingFor = hiding ? [...lit].join('\n') : null;
+		if (hidingFor !== null && hidingFor !== this.hidingFor) {
+			window.requestAnimationFrame(() => this.attached()?.center());
+		}
+		this.hidingFor = hidingFor;
 	}
 
 	/** The rows showing, and a screen either side, in rem from the drawing's top. */
@@ -262,6 +285,9 @@ export class GraphCanvas {
 		this.controls.lines.disabled = empty;
 		this.controls.lines.toggleClass('is-active', this.showAllLines);
 		this.controls.lines.setAttr('aria-pressed', String(this.showAllLines));
+		this.controls.hide.disabled = empty;
+		this.controls.hide.toggleClass('is-active', this.hideDimmed);
+		this.controls.hide.setAttr('aria-pressed', String(this.hideDimmed));
 		this.controls.expand.disabled = empty || !model?.canExpand;
 		this.controls.collapse.disabled = empty || !model?.canCollapse;
 	}

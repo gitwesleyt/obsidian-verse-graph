@@ -43,8 +43,8 @@ note('Bible/New Testament/John/John 3 16.md', '[[John 3]]\n\nCompare [[Romans 8 
 note('Old notes/John 3 16.md', '[[John 3]]\n');
 
 // Entries.
-note('Journal/2026-09-20 Morning.md', 'The shepherd [[Psalms 23 1]] and [[John 3 16-18]].\n');
-note('Journal/2026-09-21 Evening.md', '---\nverses: "[[Romans 8 28]]"\n---\nAll of [[Psalms 23]], especially [[Psalms 23 4]].\n');
+note('Journal/2026-09-20 Morning.md', 'The shepherd [[Psalms 23 1]] and [[John 3 16-18]]. #grief\n');
+note('Journal/2026-09-21 Evening.md', '---\nverses: "[[Romans 8 28]]"\ntags: [hope, Grief]\n---\nAll of [[Psalms 23]], especially [[Psalms 23 4]].\n');
 note('Journal/Sermon on the Mount.md', '---\ndate: 2026-09-14\n---\n[[Matthew 5-7]]\n');
 note('Journal/Quick thought.md', 'Not converted yet: [[Jn 3 16]]. A book link is not a citation: [[Psalms]].\n');
 note('Journal/2026-09-22 Proverbs.md', '[[Proverbs 3 5]], then [[Proverbs 3 5-6]], and [[Genesis 1 1]].\n');

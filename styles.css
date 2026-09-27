@@ -477,3 +477,144 @@
 	font-weight: var(--font-medium);
 	background-color: var(--background-secondary);
 }
+
+/* The filter bar (the web app's item 8.4) */
+
+.verse-graph-filters {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--size-4-2);
+	padding-bottom: var(--size-4-2);
+}
+
+.verse-graph-filter {
+	display: flex;
+	align-items: center;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-l);
+}
+
+/* A filter in use is filled, as Home's chosen chips are in the app. */
+.verse-graph-filter.is-active {
+	background-color: var(--vg-lit);
+	border-color: var(--vg-accent);
+}
+
+.verse-graph-filter button {
+	height: auto;
+	padding: var(--size-2-2) var(--size-4-2);
+	font-size: var(--font-ui-small);
+	background: none;
+	box-shadow: none;
+}
+
+.verse-graph-filter-open {
+	display: flex;
+	align-items: center;
+	gap: var(--size-2-3);
+}
+
+.verse-graph-filter-icon,
+.verse-graph-filter-clear {
+	display: flex;
+	color: var(--text-muted);
+	--icon-size: var(--icon-xs);
+}
+
+.verse-graph-filter .verse-graph-filter-clear {
+	padding-left: 0;
+}
+
+.verse-graph-reset {
+	height: auto;
+	padding: var(--size-2-2) var(--size-4-2);
+	font-size: var(--font-ui-small);
+}
+
+.verse-graph-empty button {
+	margin-top: var(--size-4-2);
+}
+
+/* The pickers */
+
+.verse-graph-modal-foot {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: var(--size-4-2);
+	margin-top: var(--size-4-4);
+}
+
+.verse-graph-modal-foot .verse-graph-muted {
+	flex: 1;
+}
+
+.verse-graph-books-testament {
+	margin-top: var(--size-4-3);
+}
+
+.verse-graph-books-head {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2);
+	margin-bottom: var(--size-4-2);
+}
+
+.verse-graph-books-name {
+	font-weight: var(--font-semibold);
+}
+
+.verse-graph-books-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+	gap: var(--size-2-2) var(--size-4-3);
+}
+
+.verse-graph-books-book,
+.verse-graph-tags-tag {
+	display: flex;
+	align-items: center;
+	gap: var(--size-2-3);
+	min-width: 0;
+	font-size: var(--font-ui-small);
+}
+
+.verse-graph-books-book span:first-of-type,
+.verse-graph-tags-tag span:first-of-type {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.verse-graph-chips-heading {
+	margin: var(--size-4-3) 0 var(--size-2-3);
+	color: var(--text-muted);
+}
+
+.verse-graph-chip.is-active {
+	color: var(--text-normal);
+	background-color: var(--vg-lit);
+	box-shadow: 0 0 0 1px var(--vg-accent);
+}
+
+.verse-graph-tags-search {
+	width: 100%;
+	margin-bottom: var(--size-4-2);
+}
+
+.verse-graph-tags-list {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-2-2);
+	max-height: 50vh;
+	overflow-y: auto;
+}
+
+.verse-graph-suggestion {
+	display: flex;
+	justify-content: space-between;
+	gap: var(--size-4-3);
+}

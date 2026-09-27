@@ -50,6 +50,10 @@ export type Scene = {
 	verse: VerseRange | null;
 	entry: GraphEntry | null;
 	showAllLines: boolean;
+	/** Why the filters left nothing to draw, or null. */
+	nothingMatches: string | null;
+	/** Hide dimmed is taking away what `lit` leaves out, so no faint line runs to anything hidden. */
+	hiding: boolean;
 };
 
 export type DrawingActions = {
@@ -58,6 +62,7 @@ export type DrawingActions = {
 	selectEntry(id: string): void;
 	loadMore(): void;
 	hoverEntry(event: MouseEvent, el: HTMLElement, id: string): void;
+	resetFilters(): void;
 	/** A tree node took the keyboard, by Tab, an arrow or a click. */
 	focused(key: string): void;
 };
@@ -192,8 +197,14 @@ export class GraphDrawing {
 		this.el.parentElement?.parentElement?.toggleClass('is-empty', empty);
 		if (empty) {
 			this.clearAll();
-			if (!this.emptyCard) {
-				this.emptyCard = this.el.createDiv({ cls: 'verse-graph-empty' });
+			this.emptyCard?.remove();
+			this.emptyCard = this.el.createDiv({ cls: 'verse-graph-empty' });
+			if (scene.nothingMatches) {
+				this.emptyCard.createEl('h3', { text: 'Nothing matches' });
+				this.emptyCard.createEl('p', { text: scene.nothingMatches });
+				const reset = this.emptyCard.createEl('button', { text: 'Reset filters', attr: { 'data-graph-node': 'reset' } });
+				reset.addEventListener('click', () => this.actions.resetFilters());
+			} else {
 				this.emptyCard.createEl('h3', { text: 'No verses cited yet' });
 				this.emptyCard.createEl('p', {
 					text: 'Link a note to a verse note and the verse appears here. Converting plain references to links fills it in.',
@@ -289,7 +300,11 @@ export class GraphDrawing {
 		};
 
 		if (scene.showAllLines) {
-			scene.column.forEach((item, index) => item.cites.forEach((range) => toEntry('all', range, index, 'faint')));
+			scene.column.forEach((item, index) =>
+				item.cites
+					.filter((range) => !scene.hiding || lit.has(rangeKey(range)))
+					.forEach((range) => toEntry('all', range, index, 'faint')),
+			);
 		}
 		const chosen = scene.entry ? scene.column.findIndex((item) => item.id === scene.entry?.id) : -1;
 		if (scene.entry && chosen !== -1) {

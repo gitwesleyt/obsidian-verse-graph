@@ -87,8 +87,17 @@ describe('the notes column', () => {
 });
 
 describe('opensFor', () => {
-	it('opens the testament, book and chapter of every verse a note cites', () => {
-		expect(opensFor(A)).toEqual(['new', 'John', 'John|3', 'old', 'Psalms', 'Psalms|23']);
+	it('opens the testament, literary category, book and chapter of every verse a note cites', () => {
+		expect(opensFor(A)).toEqual([
+			'new',
+			'category:gospels',
+			'John',
+			'John|3',
+			'old',
+			'category:wisdom',
+			'Psalms',
+			'Psalms|23',
+		]);
 	});
 });
 

@@ -1,5 +1,5 @@
-import { ItemView, debounce, type WorkspaceLeaf } from 'obsidian';
-import { buildGraphTree, collapseOneLevel, expandOneLevel, openLevelsOf, type GraphTestamentNode } from '../graph-rules';
+import { ItemView, Notice, debounce, type ViewStateResult, type WorkspaceLeaf } from 'obsidian';
+import { CATEGORY_KEYS, buildGraphTree, collapseOneLevel, expandOneLevel, openLevelsOf, type GraphTestamentNode } from '../graph-rules';
 import {
 	COLUMN_PAGE,
 	NOTHING_SELECTED,
@@ -16,8 +16,19 @@ import {
 	statusLine,
 	type Selection,
 } from '../graph-selection';
-import { linkIndexOf, noteFactsOf } from '../obsidian-link-index';
+import {
+	NO_GRAPH_FILTERS,
+	nothingMatchesSentence,
+	scopeCounts,
+	type GraphFilters,
+	type GraphReference,
+} from '../graph-filter-rules';
+import { dateFacets, filterGraph, opensForReference, tagCounts, unscopedCitations } from '../graph-filters';
+import { linkIndexOf, noteFactsOf, tagsOf } from '../obsidian-link-index';
+import type { VerseGraphSettings } from '../settings';
 import { vaultToGraph, type VaultGraph } from '../vault-graph';
+import { FilterBar } from './filter-bar';
+import type { FilterContext } from './filter-modals';
 import { GraphCanvas } from './graph-canvas';
 import { NotePanel } from './note-panel';
 
@@ -31,7 +42,11 @@ const REBUILD_PAUSE_MS = 500;
  * redraws the canvas from them.
  */
 export class VerseGraphView extends ItemView {
+	/** The whole vault's graph, and `graph`, what the filters leave of it. */
+	private full: VaultGraph = { rows: [], entries: [] };
 	private graph: VaultGraph = { rows: [], entries: [] };
+	private filters: GraphFilters = NO_GRAPH_FILTERS;
+	private filterBar: FilterBar | null = null;
 	private tree: GraphTestamentNode[] = [];
 	private selection: Selection = NOTHING_SELECTED;
 	private openKeys = new Set<string>(OPENING_OPEN);
@@ -42,8 +57,15 @@ export class VerseGraphView extends ItemView {
 	private canvas: GraphCanvas | null = null;
 	private panel: NotePanel | null = null;
 	private readonly rebuildSoon = debounce(() => this.rebuild(), REBUILD_PAUSE_MS, true);
+	/** Whether the graph has been built from the link index yet. */
+	private built = false;
+	/** A note to choose once the graph is built, from saved state. */
+	private pendingEntry: string | null = null;
 
-	constructor(leaf: WorkspaceLeaf) {
+	constructor(
+		leaf: WorkspaceLeaf,
+		private readonly settings: () => VerseGraphSettings,
+	) {
 		super(leaf);
 	}
 
@@ -68,6 +90,10 @@ export class VerseGraphView extends ItemView {
 		this.clearButton = header.createEl('button', { text: 'Clear' });
 		this.clearButton.addEventListener('click', () => this.select(clearSelection(this.selection)));
 
+		this.filterBar = new FilterBar(this.contentEl, this.app, this.filterContext(), (reference) =>
+			this.chooseReference(reference),
+		);
+
 		const row = this.contentEl.createDiv({ cls: 'verse-graph-row' });
 		const register = this.registerDomEvent.bind(this) as ConstructorParameters<typeof GraphCanvas>[2];
 		this.canvas = new GraphCanvas(
@@ -84,6 +110,7 @@ export class VerseGraphView extends ItemView {
 				expand: () => this.setOpen(expandOneLevel(this.openKeys, openLevelsOf(this.tree))),
 				collapse: () => this.setOpen(collapseOneLevel(this.openKeys, openLevelsOf(this.tree))),
 				hoverEntry: (event, el, id) => this.hover(event, el, id, ''),
+				resetFilters: () => this.setFilters(NO_GRAPH_FILTERS),
 			},
 			register,
 		);
@@ -127,14 +154,106 @@ export class VerseGraphView extends ItemView {
 		this.canvas?.onResize();
 	}
 
+	/**
+	 * The chosen note is kept with the view, as the web app keeps it in the
+	 * address (its item 8.5), so a graph reopened at launch opens on it again.
+	 */
+	getState(): Record<string, unknown> {
+		return { ...super.getState(), entry: this.selection.entryId };
+	}
+
+	async setState(state: unknown, result: ViewStateResult): Promise<void> {
+		const entry = (state as { entry?: unknown } | null)?.entry;
+		if (typeof entry === 'string') {
+			if (this.built) this.showNote(entry, false);
+			else this.pendingEntry = entry;
+		}
+		await super.setState(state, result);
+	}
+
+	/**
+	 * *Show in graph* (the web app's item 8.5): chooses a note with its panel,
+	 * opens the way down to every verse it cites, and reads the column down to
+	 * it if it is past the first page. `tell` says so when it cites nothing.
+	 */
+	showNote(path: string, tell = true): void {
+		if (!this.built) {
+			this.pendingEntry = path;
+			return;
+		}
+		// A note the filters leave out brings the whole graph back, rather than saying it cites nothing.
+		if (!this.graph.entries.some((entry) => entry.id === path) && this.full.entries.some((entry) => entry.id === path)) {
+			this.setFilters(NO_GRAPH_FILTERS);
+		}
+		const index = this.graph.entries.findIndex((entry) => entry.id === path);
+		const entry = this.graph.entries[index];
+		if (!entry) {
+			if (tell) new Notice('This note cites no verses yet.');
+			return;
+		}
+		for (const key of opensFor(entry)) this.openKeys.add(key);
+		this.columnLength = Math.max(this.columnLength, Math.ceil((index + 1) / COLUMN_PAGE) * COLUMN_PAGE);
+		this.select({ verse: null, entryId: path, panelShowing: true });
+		window.requestAnimationFrame(() => this.canvas?.showEntry(path));
+	}
+
 	private rebuild(): void {
-		this.graph = vaultToGraph(linkIndexOf(this.app), noteFactsOf(this.app));
-		this.tree = buildGraphTree(this.graph.rows);
+		this.full = vaultToGraph(linkIndexOf(this.app), noteFactsOf(this.app));
+		this.built = true;
+		this.applyFilters();
+		if (this.pendingEntry) {
+			const entry = this.pendingEntry;
+			this.pendingEntry = null;
+			this.showNote(entry, false);
+		}
+	}
+
+	/** A setting changed. Switching the categories on shows them open, as the graph opens them. */
+	settingsChanged(): void {
+		if (this.settings().literaryCategories) for (const key of CATEGORY_KEYS) this.openKeys.add(key);
+		this.applyFilters();
+	}
+
+	/** The graph again from `full`, through the filters, keeping what is still there selected. */
+	private applyFilters(): void {
+		this.graph = filterGraph(this.full, this.filters, tagsOf(this.app));
+		this.tree = buildGraphTree(this.graph.rows, { categories: this.settings().literaryCategories });
 		this.selection = keepSelection(this.selection, this.graph.rows, this.graph.entries);
+		this.filterBar?.draw();
 		this.draw();
 	}
 
+	/**
+	 * A filter changed. The selection is let go of and what is open is kept, as
+	 * in the app: a verse filtered away cannot stay selected.
+	 */
+	private setFilters(filters: GraphFilters): void {
+		this.filters = filters;
+		this.selection = NOTHING_SELECTED;
+		this.columnLength = COLUMN_PAGE;
+		this.applyFilters();
+	}
+
+	/** Choosing a reference opens the tree down to it: a book to its chapters, a chapter to its verses. */
+	private chooseReference(reference: GraphReference): void {
+		for (const key of opensForReference(reference)) this.openKeys.add(key);
+		this.setFilters({ ...this.filters, reference });
+	}
+
+	private filterContext(): FilterContext {
+		const tags = () => tagsOf(this.app);
+		return {
+			filters: () => this.filters,
+			setFilters: (filters) => this.setFilters(filters),
+			scopeCounts: () => scopeCounts(unscopedCitations(this.full, this.filters, tags())),
+			dateFacets: () => dateFacets(this.full, this.filters, tags()),
+			tagCounts: () => tagCounts(this.full, this.filters, tags()),
+		};
+	}
+
 	private select(selection: Selection): void {
+		// The chosen note is part of the view's saved state.
+		if (selection.entryId !== this.selection.entryId) this.app.workspace.requestSaveLayout();
 		this.selection = selection;
 		this.draw();
 	}
@@ -186,6 +305,12 @@ export class VerseGraphView extends ItemView {
 			entry,
 			canExpand: levels.some((level) => level.some((key) => !this.openKeys.has(key))),
 			canCollapse: levels.some((level) => level.some((key) => this.openKeys.has(key))),
+			// The filters leave nothing, in a vault that has verses: said in the filters' own terms,
+			// never as an empty vault. The app's sentence says entries; the plugin's are notes.
+			nothingMatches:
+				rows.length === 0 && this.full.rows.length > 0
+					? nothingMatchesSentence(this.filters).replace(/\bentries\b/g, 'notes')
+					: null,
 		});
 
 		const line = statusLine(rows, entries, this.selection);

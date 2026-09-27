@@ -34,7 +34,6 @@ export type VaultGraph = {
 };
 
 export function vaultToGraph(index: LinkIndex, factsOf: (path: string) => NoteFacts): VaultGraph {
-	const cited = new Map<string, { range: VerseRange; notes: Set<string>; firstWritten: number }>();
 	const entries: (GraphEntry & { time: number })[] = [];
 
 	for (const path of new Set([...Object.keys(index.resolvedLinks), ...Object.keys(index.unresolvedLinks)])) {
@@ -54,26 +53,35 @@ export function vaultToGraph(index: LinkIndex, factsOf: (path: string) => NoteFa
 			cites,
 			time,
 		});
-
-		for (const range of cites) {
-			const key = rangeKey(range);
-			const node = cited.get(key) ?? { range, notes: new Set<string>(), firstWritten: time };
-			node.notes.add(path);
-			node.firstWritten = Math.min(node.firstWritten, time);
-			cited.set(key, node);
-		}
 	}
 
-	const rows = [...cited.values()]
-		.map(({ range, notes, firstWritten }) => ({
-			...range,
-			entryCount: notes.size,
-			firstWritten: new Date(firstWritten).toISOString(),
-		}))
-		.sort(compareRanges);
-
 	entries.sort((a, b) => b.time - a.time || byTitle.compare(a.title, b.title));
-	return { rows, entries: entries.map(({ time: _time, ...entry }) => entry) };
+	const sorted = entries.map(({ time: _time, ...entry }) => entry);
+	return { rows: rowsOf(sorted), entries: sorted };
+}
+
+/**
+ * The tree's rows from the notes: each range any of them cites, with how many
+ * notes cite it and when the first of them was written. Filtering builds the
+ * rows again from the notes that pass, through here.
+ */
+export function rowsOf(entries: readonly GraphEntry[]): GraphVerseRow[] {
+	const cited = new Map<string, { range: VerseRange; notes: number; firstWritten: string }>();
+	for (const entry of entries) {
+		for (const range of entry.cites) {
+			const key = rangeKey(range);
+			const node = cited.get(key);
+			if (!node) cited.set(key, { range, notes: 1, firstWritten: entry.entryDate });
+			else {
+				node.notes++;
+				// ISO strings in UTC sort as their times do.
+				if (entry.entryDate < node.firstWritten) node.firstWritten = entry.entryDate;
+			}
+		}
+	}
+	return [...cited.values()]
+		.map(({ range, notes, firstWritten }) => ({ ...range, entryCount: notes, firstWritten }))
+		.sort(compareRanges);
 }
 
 /** One collator for the sort; `localeCompare` makes one per call, which shows on thousands of notes. */

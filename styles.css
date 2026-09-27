@@ -1,6 +1,7 @@
 /* Verse graph. Colours come from the theme, so it follows light, dark and custom themes. */
 
 .verse-graph {
+	container: verse-graph / inline-size;
 	--vg-accent: var(--interactive-accent);
 	--vg-lit: color-mix(in srgb, var(--interactive-accent) 12%, var(--background-primary));
 	--vg-ring: color-mix(in srgb, var(--interactive-accent) 25%, transparent);
@@ -624,4 +625,104 @@
 	color: var(--text-muted);
 	font-family: var(--font-monospace);
 	user-select: text;
+}
+
+/* The panel's own title, in its bar: only a narrow graph's sheet shows it. */
+.verse-graph-panel-title {
+	display: none;
+}
+
+/*
+ * A narrow graph: a phone, or a narrow pane on a computer. The web app draws
+ * its phone layout below 1100px of window; here it is the graph's own width
+ * that matters. The toolbar goes along the bottom, the filters are one row
+ * that scrolls sideways, and the note panel is a sheet along the bottom.
+ */
+@container verse-graph (width < 50rem) {
+	.verse-graph-row {
+		position: relative;
+	}
+
+	.verse-graph-toolbar {
+		top: auto;
+		bottom: var(--size-4-2);
+		left: var(--size-4-2);
+		right: var(--size-4-2);
+		max-width: none;
+		flex-wrap: nowrap;
+		justify-content: safe center;
+		overflow-x: auto;
+	}
+
+	/* The sheet's bar lies along the bottom; the toolbar sits above it. */
+	.verse-graph-row.has-panel .verse-graph-toolbar {
+		bottom: calc(3.5rem + var(--size-4-2));
+	}
+
+	.verse-graph-hint {
+		display: none;
+	}
+
+	.verse-graph-filters {
+		flex-wrap: nowrap;
+		overflow-x: auto;
+	}
+
+	.verse-graph-filter {
+		flex: none;
+	}
+
+	.verse-graph-panel {
+		position: absolute;
+		z-index: var(--layer-cover);
+		left: 0;
+		right: 0;
+		bottom: 0;
+		width: auto;
+		max-height: calc(100% - 4rem);
+		box-shadow: var(--shadow-l);
+		animation-name: verse-graph-rise;
+	}
+
+	/* Opened from its title: to the height of the graph, less a strip of it. */
+	.verse-graph-panel.is-open {
+		height: calc(100% - 4rem);
+	}
+
+	.verse-graph-panel:not(.is-open) .verse-graph-panel-body,
+	.verse-graph-panel:not(.is-open) .verse-graph-panel-foot,
+	.verse-graph-panel:not(.is-open) .verse-graph-back,
+	.verse-graph-panel .verse-graph-panel-kind,
+	.verse-graph-panel .verse-graph-spacer {
+		display: none;
+	}
+
+	.verse-graph-panel-title {
+		display: block;
+		flex: 1;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		text-align: left;
+		font-weight: var(--font-semibold);
+		background: none;
+		box-shadow: none;
+	}
+}
+
+@keyframes verse-graph-rise {
+	from {
+		opacity: 0;
+		transform: translateY(1.5rem);
+	}
+}
+
+/* Touch: every control is at least 44px, the size a fingertip can find. */
+body.is-mobile .verse-graph-toolbar button,
+body.is-mobile .verse-graph-filter button,
+body.is-mobile .verse-graph-reset,
+body.is-mobile .verse-graph-panel-bar button {
+	min-height: 44px;
+	min-width: 44px;
 }

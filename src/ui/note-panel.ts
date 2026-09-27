@@ -8,7 +8,8 @@ import { rangesOf } from '../vault-graph';
  * The read-only note panel beside the canvas, as the web app's
  * `GraphEntryPanel.tsx`: the chosen note's title, date and the verses it cites,
  * then the note itself, scrolled to the first paragraph citing the selected
- * verse, with Open note at the bottom.
+ * verse, with Open note at the bottom. On a narrow graph, a sheet along the
+ * bottom that opens from its title, as the app's is below its line.
  *
  * It reads only the one chosen note's text. The graph itself never does.
  */
@@ -74,7 +75,17 @@ export class NotePanel {
 		this.rendered = rendered;
 		this.el.empty();
 
+		// On a narrow graph the panel is a sheet along the bottom that arrives as its bar,
+		// so the lines to the note's verses stay in sight; its title opens the rest, and
+		// closes it again. Each note chosen arrives as a bar. Wide, the bar's title is not shown.
+		this.el.removeClass('is-open');
 		const bar = this.el.createDiv({ cls: 'verse-graph-panel-bar' });
+		const title = bar.createEl('button', { cls: 'verse-graph-panel-title', text: entry.title });
+		title.addEventListener('click', () => {
+			this.el.toggleClass('is-open', !this.el.hasClass('is-open'));
+			title.setAttr('aria-expanded', String(this.el.hasClass('is-open')));
+		});
+		title.setAttr('aria-expanded', 'false');
 		if (verse) {
 			const back = bar.createEl('button', { cls: 'clickable-icon verse-graph-back', text: `‹ ${rangeLabel(verse)}` });
 			back.addEventListener('click', () => this.actions.back());

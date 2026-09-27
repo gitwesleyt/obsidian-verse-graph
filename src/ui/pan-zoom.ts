@@ -8,6 +8,7 @@ import {
 	fitView,
 	keepInView,
 	keepStill,
+	pinchTo,
 	nextZoomStep,
 	openingView,
 	samePoint,
@@ -17,9 +18,11 @@ import {
 	zoomAt,
 	zoomDelta,
 	type Inset,
+	type PinchStart,
 	type Point,
 	type Size,
 } from '../graph-zoom-rules';
+import { hasStopped, keepRecent, releaseVelocity, slowDown, type Sample, type Velocity } from '../graph-glide-rules';
 import { EASE_OUT_CSS, OPEN_CLOSE_MS } from '../graph-layout';
 
 /**
@@ -34,6 +37,10 @@ const DRAG_SLOP = 6;
 
 /** How long a wheel has to be still before the graph is eased back on screen. */
 const WHEEL_SETTLE_MS = 200;
+
+/** Two taps closer together than this, in time and screen pixels, are a double tap. */
+const DOUBLE_TAP_MS = 300;
+const DOUBLE_TAP_SLOP = 30;
 
 /** Marks what the canvas must not pan from or treat as empty space. */
 export const CONTROL = 'verse-graph-control';
@@ -50,6 +57,7 @@ type Register = <K extends keyof HTMLElementEventMap>(
 export class PanZoom {
 	private readonly pz: PanzoomObject;
 	private wheelSettled = 0;
+	private glideFrame = 0;
 
 	constructor(
 		private readonly viewport: HTMLElement,
@@ -72,18 +80,56 @@ export class PanZoom {
 			onChange((event as CustomEvent<{ scale: number }>).detail.scale);
 		});
 
-		let down: { point: Point; pan: Point; id: number } | null = null;
+		/**
+		 * Dragging and pinching, as the web app's canvas does them. Every pointer
+		 * on the canvas is kept by id; one drags, two pinch (`pinchTo`), and
+		 * **whenever the count changes the gesture starts again from where the
+		 * graph is**, so lifting one finger out of a pinch carries on as a drag
+		 * instead of jumping back to where the pinch began.
+		 */
+		const pointers = new Map<number, Point>();
+		let dragFrom: { point: Point; pan: Point } | null = null;
+		let pinch: PinchStart | null = null;
+		let pressedAt: Point | null = null;
 		let dragged = false;
+		let captured = false;
+		/** The last 100 ms of where a lone finger was, for the glide when it lifts. */
+		let samples: Sample[] = [];
+		let lastTap: { at: number; point: Point } | null = null;
+
+		const restartGesture = () => {
+			const points = [...pointers.values()];
+			dragFrom = null;
+			pinch = null;
+			const [a, b] = points;
+			if (a && !b) dragFrom = { point: a, pan: this.pz.getPan() };
+			else if (a && b) {
+				pinch = {
+					middle: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+					distance: Math.hypot(a.x - b.x, a.y - b.y),
+					scale: this.pz.getScale(),
+					pan: this.pz.getPan(),
+				};
+			}
+		};
 
 		register(
 			viewport,
 			'pointerdown',
 			(event) => {
-				dragged = false;
+				// A finger landing on a gliding graph catches it, as on any phone.
+				this.stopGlide();
 				if ((event.target as Element).closest(`.${CONTROL}`)) return;
-				if (event.button !== 0) return;
-				viewport.focus({ preventScroll: true });
-				down = { point: this.toViewport(event), pan: this.pz.getPan(), id: event.pointerId };
+				if (event.pointerType === 'mouse' && event.button !== 0) return;
+				if (pointers.size === 0) {
+					dragged = false;
+					captured = false;
+					pressedAt = this.toViewport(event);
+					viewport.focus({ preventScroll: true });
+				}
+				pointers.set(event.pointerId, this.toViewport(event));
+				samples = [];
+				restartGesture();
 			},
 			true,
 		);
@@ -91,14 +137,35 @@ export class PanZoom {
 			viewport,
 			'pointermove',
 			(event) => {
-				if (!down || event.pointerId !== down.id) return;
+				if (!pointers.has(event.pointerId)) return;
 				const now = this.toViewport(event);
-				if (!dragged && Math.hypot(now.x - down.point.x, now.y - down.point.y) <= DRAG_SLOP) return;
+				pointers.set(event.pointerId, now);
+				if (pressedAt && Math.hypot(now.x - pressedAt.x, now.y - pressedAt.y) > DRAG_SLOP) dragged = true;
+
+				if (pinch && pointers.size >= 2) {
+					const [a, b] = [...pointers.values()] as [Point, Point];
+					this.apply(
+						pinchTo(pinch, {
+							middle: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+							distance: Math.hypot(a.x - b.x, a.y - b.y),
+						}),
+						false,
+					);
+					samples = [];
+					return;
+				}
+				if (!dragFrom || !dragged) return;
 				// Captured only once it is a drag, so a plain click still lands on its node.
-				if (!dragged) viewport.setPointerCapture(event.pointerId);
-				dragged = true;
+				if (!captured) {
+					viewport.setPointerCapture(event.pointerId);
+					captured = true;
+				}
+				if (event.pointerType === 'touch') {
+					samples = keepRecent(samples, event.timeStamp);
+					samples.push({ t: event.timeStamp, x: event.clientX, y: event.clientY });
+				}
 				const scale = this.pz.getScale();
-				this.pz.pan(down.pan.x + (now.x - down.point.x) / scale, down.pan.y + (now.y - down.point.y) / scale, {
+				this.pz.pan(dragFrom.pan.x + (now.x - dragFrom.point.x) / scale, dragFrom.pan.y + (now.y - dragFrom.point.y) / scale, {
 					force: true,
 					animate: false,
 				});
@@ -106,12 +173,40 @@ export class PanZoom {
 			true,
 		);
 		const release = (event: PointerEvent) => {
-			if (!down || event.pointerId !== down.id) return;
-			down = null;
-			if (dragged) this.keepInView();
+			if (!pointers.has(event.pointerId)) return;
+			const wasOnlyFinger = pointers.size === 1;
+			pointers.delete(event.pointerId);
+			restartGesture();
+			if (pointers.size > 0) return;
+
+			// A lone finger flicked: the graph carries on a little and slows (graph-glide-rules.ts).
+			const velocity =
+				event.type === 'pointerup' && event.pointerType === 'touch' && dragged && wasOnlyFinger && !reducedMotion()
+					? releaseVelocity(samples, event.timeStamp)
+					: null;
+			samples = [];
+			if (velocity) this.glide(velocity);
+			else if (dragged) this.keepInView();
+
+			// A double tap zooms one step in, on the spot it landed.
+			if (event.type !== 'pointerup' || event.pointerType !== 'touch' || dragged) return;
+			const at = this.toViewport(event);
+			const time = performance.now();
+			if (lastTap && time - lastTap.at < DOUBLE_TAP_MS && Math.hypot(at.x - lastTap.point.x, at.y - lastTap.point.y) < DOUBLE_TAP_SLOP) {
+				this.zoomAbout(at, nextZoomStep(this.pz.getScale(), 'in'), true);
+				lastTap = null;
+			} else {
+				lastTap = { at: time, point: at };
+			}
 		};
 		register(viewport, 'pointerup', release, true);
 		register(viewport, 'pointercancel', release, true);
+
+		// Obsidian on a phone opens its side panels on a sideways swipe. On the canvas a
+		// swipe moves the graph, so it goes no further than the canvas.
+		for (const type of ['touchstart', 'touchmove'] as const) {
+			register(viewport, type, (event) => event.stopPropagation(), { passive: true });
+		}
 
 		register(
 			viewport,
@@ -190,7 +285,7 @@ export class PanZoom {
 	 */
 	keepStill(beforeY: number, afterY: number, remPx: number): void {
 		const next = keepStill(this.pz.getPan(), beforeY, afterY, remPx);
-		const animate = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+		const animate = !reducedMotion();
 		this.pz.pan(next.x, next.y, { force: true, animate, duration: OPEN_CLOSE_MS, easing: EASE_OUT_CSS });
 	}
 
@@ -221,7 +316,37 @@ export class PanZoom {
 
 	destroy(): void {
 		window.clearTimeout(this.wheelSettled);
+		this.stopGlide();
 		this.pz.destroy();
+	}
+
+	/** Carries the graph on from a flick, slowing each frame, then eases it back on screen. */
+	private glide(initial: Velocity): void {
+		let velocity = initial;
+		let last = performance.now();
+		const frame = (now: number) => {
+			const elapsed = Math.min(now - last, 50);
+			last = now;
+			const scale = this.pz.getScale();
+			this.pz.pan((velocity.x * elapsed) / scale, (velocity.y * elapsed) / scale, {
+				relative: true,
+				force: true,
+				animate: false,
+			});
+			velocity = slowDown(velocity, elapsed);
+			if (hasStopped(velocity)) {
+				this.glideFrame = 0;
+				this.keepInView();
+				return;
+			}
+			this.glideFrame = window.requestAnimationFrame(frame);
+		};
+		this.glideFrame = window.requestAnimationFrame(frame);
+	}
+
+	private stopGlide(): void {
+		window.cancelAnimationFrame(this.glideFrame);
+		this.glideFrame = 0;
 	}
 
 	private zoomAbout(at: Point, toScale: number, animate: boolean): void {
@@ -241,4 +366,8 @@ export class PanZoom {
 			y: event.clientY - rect.top - this.viewport.clientTop,
 		};
 	}
+}
+
+function reducedMotion(): boolean {
+	return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }

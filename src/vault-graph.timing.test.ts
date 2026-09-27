@@ -41,7 +41,7 @@ function bigVault(): LinkIndex {
 }
 
 describe('a 5,000-note vault', () => {
-	it(`rebuilds in under ${BUDGET_MS} ms`, () => {
+	it(`rebuilds in under ${BUDGET_MS} ms`, async ({ annotate }) => {
 		const index = bigVault();
 		const facts = () => ({ dateProperty: undefined, created: Date.UTC(2026, 0, 1) });
 		// Once to warm up, as Obsidian will have by the second rebuild.
@@ -52,10 +52,8 @@ describe('a 5,000-note vault', () => {
 		const layout = layoutGraph(buildGraphTree(graph.rows));
 		const took = performance.now() - start;
 
-		// The timing is the point of the test, so it is printed. Tests never ship in main.js.
-		process.stdout.write(
-			`5,000 notes: ${graph.rows.length} verses, ${layout.nodes.length} boxes, rebuilt in ${took.toFixed(1)} ms\n`,
-		);
+		// The timing is the point of the test, so it goes in the test's report.
+		await annotate(`${graph.rows.length} verses, ${layout.nodes.length} boxes, rebuilt in ${took.toFixed(1)} ms`);
 		expect(graph.entries).toHaveLength(NOTES);
 		expect(took).toBeLessThan(BUDGET_MS);
 	});

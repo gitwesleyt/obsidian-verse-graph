@@ -1,8 +1,8 @@
-import { setIcon } from 'obsidian';
+import { Platform, setIcon } from 'obsidian';
 import { GRAPH_NODE_HEIGHT, anchorFor, entryRowTop, layoutGraph, type GraphLayout } from '../graph-layout';
 import { litPath, onlyLit, rangeKey, type GraphEntry, type GraphTestamentNode, type VerseRange } from '../graph-rules';
 import { graphKeyAction, moveInTree, treeKeyEffect } from '../graph-key-rules';
-import { MAX_ZOOM, MIN_ZOOM, THIN_LABELS_BELOW, zoomPercent } from '../graph-zoom-rules';
+import { MAX_ZOOM, MIN_ZOOM, THIN_LABELS_BELOW, zoomPercent, type Inset } from '../graph-zoom-rules';
 import { GraphDrawing, type Band } from './graph-drawing';
 import { CONTROL, PanZoom, type Sizes } from './pan-zoom';
 
@@ -118,7 +118,10 @@ export class GraphCanvas {
 		);
 		this.controls = { out, in: zoomIn, fit, center, lines, expand, collapse, hide };
 
-		this.viewport.createDiv({ cls: 'verse-graph-hint', text: 'Scroll or drag to move · shift-scroll to zoom' });
+		this.viewport.createDiv({
+			cls: 'verse-graph-hint',
+			text: Platform.isMobile ? 'Drag to move · pinch to zoom' : 'Scroll or drag to move · shift-scroll to zoom',
+		});
 
 		this.showScale(1);
 		register(this.viewport, 'keydown', (event) => this.onKey(event));
@@ -315,12 +318,21 @@ export class GraphCanvas {
 		return {
 			content: { width: this.contentRem.width * rem, height: this.contentRem.height * rem },
 			viewport: { width: box.width, height: box.height },
-			// The toolbar sits over the top of the canvas; Fit and the opening view keep clear of it.
-			// Measured from layout rather than the screen, which a transform part-way through
-			// Obsidian opening the tab would throw off.
-			inset: { top: this.toolbar.offsetTop + this.toolbar.offsetHeight, bottom: 0 },
+			// The toolbar sits over the canvas, at the top or, on a narrow canvas, the bottom;
+			// Fit and the opening view keep clear of whichever edge it is on. Measured from
+			// layout rather than the screen, which a transform part-way through Obsidian
+			// opening the tab would throw off.
+			inset: toolbarInset(this.toolbar, this.viewport.clientHeight),
 		};
 	}
+}
+
+/** How much of the canvas the toolbar covers, at the edge it is nearer: the web app's `toolbarInset`. */
+function toolbarInset(bar: HTMLElement, height: number): Inset {
+	if (bar.offsetHeight === 0) return { top: 0, bottom: 0 };
+	const top = bar.offsetTop;
+	const bottom = top + bar.offsetHeight;
+	return top < height - bottom ? { top: bottom, bottom: 0 } : { top: 0, bottom: height - top };
 }
 
 /** Pixels per rem, read off the page. */

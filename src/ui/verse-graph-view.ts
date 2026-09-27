@@ -337,7 +337,9 @@ export class VerseGraphView extends ItemView {
 		this.status.appendText(line.rest);
 		this.clearButton.toggle(verse !== null || entryId !== null);
 
-		void this.panel?.show(panelShowing ? entry : null, verse);
+		const showing = panelShowing ? entry : null;
+		this.panel?.el.parentElement?.toggleClass('has-panel', showing !== null);
+		void this.panel?.show(showing, verse);
 	}
 
 	/** Obsidian's page preview, for a note in the column or a link in the panel. */

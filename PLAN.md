@@ -19,7 +19,7 @@ The first version draws the tree, lets you select, and opens notes. Anything tha
 | Updates when a note changes | Yes | Otherwise it goes stale after one edit |
 | Command "Open verse graph" and a ribbon icon | Yes | How Obsidian plugins are opened |
 | Filters (books, reference, dates, tags) | Yes, since session 4 | Item 8.4, built in the Wave 8 parity session |
-| Phone and tablet (pinch, flick, touch gestures) | No | The riskiest part; the plugin is marked desktop-only until then |
+| Phone and tablet (pinch, flick, touch gestures) | Yes, since session 6 | Built from the app's gestures and phone layout; tried on a phone once released |
 | Slide animations and eased selection | Yes, since session 3 | You asked for them: without them you couldn't tell where things went. Flick glide waits for phone support, since it is for a finger |
 | Keyboard walking of the tree, and `+` `-` `0` `C` | Yes, since session 3 | The app's `graph-key-rules.ts`, copied |
 | Replay over time (item 8.3) | No | Not built in the app either |
@@ -102,7 +102,7 @@ The plugin is meant to end up with everything the web app's Graph screen does (`
 | Item | In the app | In the plugin | What's left |
 | --- | --- | --- | --- |
 | 8.1 Spike: what the graph reads | Merged | Done differently, session 1 | Nothing. The app queries its database; the plugin reads Obsidian's link index (`vaultToGraph`) |
-| 8.2 Tree, notes column, canvas, selection, pan and zoom, empty state, keyboard | Merged | Done, sessions 2–3 | Phone flick glide (`graph-glide-rules.ts`), with phone support |
+| 8.2 Tree, notes column, canvas, selection, pan and zoom, empty state, keyboard | Merged | Done, sessions 2, 3 and 6 | Nothing. Session 6 added touch, the flick glide and the phone layout |
 | 8.3 Replay over time | Not started | Not started | Follows the app, if the app builds it |
 | 8.4 Filters: books, a reference, a date range, tags, Reset | Merged | Done, session 4 | Nothing. `graph-filter-rules.ts` copied; the filtering the app does in SQL is `graph-filters.ts`. Tags are Obsidian's, from its in-memory cache |
 | 8.5 Read-only note panel, and *Show in graph* from the editor | Merged | Done, sessions 2 and 4 | Nothing. **Show current note in graph** (command) and **Show in verse graph** (a note's menu). The chosen note is kept in the view's saved state, the plugin's version of the app's address |
@@ -125,11 +125,14 @@ Wave 8 is done except Replay, and `0.2.0` is in your real vault (2026-09-27). Wh
 - **The version installed**, read only, at the bottom of **Settings → Verse Graph**.
 - **8.7 brought back in step** with the app's commit `02cd395`: Hide dimmed keeps the selection where it is on screen and closes the rest up round it (`keepStill`), instead of recentring, and Center while hiding centres what's left on each axis (`centerEachAxis`).
 
-**2. Session 6: phone and tablet.** The riskiest part, and the one the plan put last:
+**2. Session 6: phone and tablet. Built; to be tried on a phone.**
 
-- Touch: drag to pan, pinch to zoom, and the app's flick glide (`graph-glide-rules.ts`, copied unchanged).
-- The phone layout the app already drew: toolbar at the bottom with 44 px buttons, the note panel as a sheet, Books as a sheet.
-- `isDesktopOnly: false`, then testing on your phone through BRAT. Obsidian Mobile has no Node or Electron, and nothing here uses them.
+- **Touch, as the app does it**: one finger pans, two pinch (`pinchTo`), and a count of fingers changing starts the gesture again from where the graph is; a flick glides a little and slows (`graph-glide-rules.ts`, copied); a double tap zooms one step in on the spot. The canvas takes every touch, and a swipe on it doesn't reach Obsidian's side panels.
+- **A narrow graph gets the phone layout**: the toolbar along the bottom, the filters one row that scrolls sideways, and the note panel a sheet along the bottom that arrives as its title and opens from it. The app draws this below 1100px of window; the plugin goes by the graph's own width, under 50rem, so a narrow pane on a computer gets it too.
+- **44px controls** whenever Obsidian is on a phone or tablet.
+- **`isDesktopOnly: false`.** Nothing in the plugin uses Node or Electron.
+- **Not done: the Books sheet that stages** (the app's *Show 5 verses*). The pickers are Obsidian dialogs, which a phone shows full screen, and they apply as ticked, as on a computer.
+- **To try it on the phone**: install through BRAT there as on the computer, once a release has it.
 
 **3. Following the app, as it changes.** Each lands as a row in the Wave 8 table:
 

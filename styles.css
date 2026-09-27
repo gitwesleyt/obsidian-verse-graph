@@ -132,8 +132,11 @@
 		box-shadow 200ms ease-out;
 }
 
-.verse-graph-node:hover {
-	border-color: var(--background-modifier-border-hover);
+/* As the toolbar's: a tapped box would otherwise keep its hover border on a touch screen. */
+@media (hover: hover) {
+	.verse-graph-node:hover {
+		border-color: var(--background-modifier-border-hover);
+	}
 }
 
 /* The node the keyboard is on. */
@@ -301,8 +304,15 @@
 	box-shadow: none;
 }
 
-.verse-graph-toolbar button:hover:not(:disabled) {
-	background-color: var(--background-modifier-hover);
+/*
+ * Only where there is a pointer to hover with. A touch screen keeps a tapped
+ * button "hovered" until something else is tapped, so a toggle switched off
+ * would stay grey and look as if it were still on.
+ */
+@media (hover: hover) {
+	.verse-graph-toolbar button:hover:not(:disabled) {
+		background-color: var(--background-modifier-hover);
+	}
 }
 
 .verse-graph-toolbar button:disabled {

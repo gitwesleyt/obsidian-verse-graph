@@ -1,7 +1,7 @@
 {
 	"id": "verse-graph",
 	"name": "Verse Graph",
-	"version": "0.1.0",
+	"version": "0.2.0",
 	"minAppVersion": "1.11.0",
 	"description": "Draws the Bible verses your notes cite as a tree from testament to verse, beside the notes that cite them.",
 	"author": "Wesley Tullis",

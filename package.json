@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-verse-graph",
-	"version": "0.1.0",
+	"version": "0.2.0",
 	"description": "Obsidian plugin that draws the Bible verses your notes cite as a graph.",
 	"main": "main.js",
 	"type": "module",

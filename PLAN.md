@@ -6,7 +6,7 @@ A new Obsidian plugin, separate from Scripture Thread, that draws the web app's 
 
 ## Scope
 
-The first version draws the tree, lets you select, and opens notes. Anything that only makes it nicer waits until you've used it for a couple of weeks.
+The first version draws the tree, lets you select, and opens notes. Anything that only makes it nicer came after, once a quick try showed it was worth it.
 
 | Feature | First version? | Why |
 | --- | --- | --- |
@@ -18,7 +18,7 @@ The first version draws the tree, lets you select, and opens notes. Anything tha
 | Pan by dragging, Shift + scroll to zoom, − / + / Fit buttons | Yes | The minimum to get around a big tree |
 | Updates when a note changes | Yes | Otherwise it goes stale after one edit |
 | Command "Open verse graph" and a ribbon icon | Yes | How Obsidian plugins are opened |
-| Filters (books, reference, dates, tags) | No | 1–2 sessions; wait to see if they're missed |
+| Filters (books, reference, dates, tags) | Yes, since session 4 | Item 8.4, built in the Wave 8 parity session |
 | Phone and tablet (pinch, flick, touch gestures) | No | The riskiest part; the plugin is marked desktop-only until then |
 | Slide animations and eased selection | Yes, since session 3 | You asked for them: without them you couldn't tell where things went. Flick glide waits for phone support, since it is for a finger |
 | Keyboard walking of the tree, and `+` `-` `0` `C` | Yes, since session 3 | The app's `graph-key-rules.ts`, copied |
@@ -114,29 +114,27 @@ The plugin is meant to end up with everything the web app's Graph screen does (`
 
 ## After Wave 8
 
-Wave 8 is done except Replay, and `0.2.0` is in your real vault (2026-09-27). In order:
+Wave 8 is done except Replay, and `0.2.0` is in your real vault (2026-09-27). Whatever gets in the way in your real journal outranks the order below.
 
-**1. Use it for two weeks, to 2026-10-11.** The plan's own test of whether it's worth continuing: open it from your real journal, and keep a list of what gets in the way. What that list says outranks the order below.
-
-**2. Session 5: small things found so far.** Each is small, and none needs the app:
+**1. Session 5: small things found so far.** Each is small, and none needs the app:
 
 - **Keep the selected verse and what's open in the saved state too**, not only the chosen note, so a graph reopened at launch comes back exactly as it was. The app has the same gap as TD-117 (*a selection is gone after going back or reloading*); the plugin can close it without waiting.
 - **A dev-only `npm run compare-app`** that diffs every copied file against the web app's current version and lists what changed, so keeping in step is a command rather than a memory. It reads the app's folder only when it's there, and nothing in the build or tests needs it, so the two stay separate.
 - **Declarative settings**, when the installed `obsidian` types have Obsidian 1.13's settings API (the one lint warning), so **Literary categories** turns up in Obsidian's settings search.
 
-**3. Session 6: phone and tablet.** The riskiest part, and the one the plan put last:
+**2. Session 6: phone and tablet.** The riskiest part, and the one the plan put last:
 
 - Touch: drag to pan, pinch to zoom, and the app's flick glide (`graph-glide-rules.ts`, copied unchanged).
 - The phone layout the app already drew: toolbar at the bottom with 44 px buttons, the note panel as a sheet, Books as a sheet.
 - `isDesktopOnly: false`, then testing on your phone through BRAT. Obsidian Mobile has no Node or Electron, and nothing here uses them.
 
-**4. Following the app, as it changes.** Each lands as a row in the Wave 8 table:
+**3. Following the app, as it changes.** Each lands as a row in the Wave 8 table:
 
 - **8.3 Replay**, if the app builds it.
 - **TD-116** (`Proverbs 3:5, 6` drawn as the range `3:5–6`). The plugin does the same thing, in `rangesOf`, for the same reason. If the app fixes it, the fix comes across with the files.
 - Anything the app adds to its Graph screen.
 
-**5. Open decision: the web app's Wave 9, Calendar.** Month, year and decade views, with each day shaded by how much was written. It isn't the graph, so it doesn't belong in this plugin. The choice is:
+**4. Open decision: the web app's Wave 9, Calendar.** Month, year and decade views, with each day shaded by how much was written. It isn't the graph, so it doesn't belong in this plugin. The choice is:
 
 - **A second plugin** (`verse-calendar` or a broader name), built the same way: copy the app's rules once they exist, draw with Obsidian's theme. The year and decade heat maps are what Obsidian's existing calendar plugins don't do.
 - **Not at all**, and use an existing calendar plugin for the month view.
@@ -178,11 +176,11 @@ Session 3's 5,000-note timing check is what proves these rules hold, not what th
 
 ## Decisions before the first session
 
-All taken. The first five were built as recommended; the sixth changed, since filters came before the two weeks of use rather than after.
+All taken. The first five were built as recommended; the sixth was dropped.
 
 - [x] **Where a note's date comes from.** A `date` property if the note has one, else a date in the file name (`2026-09-26 …`), else the day the file was created. Creation dates can shift when files are synced or copied, which is why they're the last resort.
 - [x] **Only Scripture Thread's links, or plain-text references too?** Links only. Finding plain text for the graph means reading every note in the vault on every rebuild, which is what the speed rules forbid.
 - [x] **Which verse-linking notes count as entries.** Every note except the parent-chain link, using Scripture Thread's `isParentLink` rule, so commentary written inside a verse note appears.
 - [x] **Plugin name and id.** *Verse Graph*, `verse-graph`. The id can't change now that it's installed.
 - [x] **Private repo, installed through BRAT**, like Scripture Thread. Listing it in Obsidian's community directory can wait.
-- [x] **What counts as "worth continuing".** Two weeks of use from `0.2.0`, to 2026-10-11 (see *After Wave 8*). Filters are already built; phone support is next after the small things.
+- [x] **What counts as "worth continuing".** Dropped: a quick try in your real vault settles it, not a two-week wait. Filters are already built; phone support is next after the small things.

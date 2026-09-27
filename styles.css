@@ -618,3 +618,10 @@
 	justify-content: space-between;
 	gap: var(--size-4-3);
 }
+
+/* Settings: the installed version, read only. */
+.verse-graph-version {
+	color: var(--text-muted);
+	font-family: var(--font-monospace);
+	user-select: text;
+}

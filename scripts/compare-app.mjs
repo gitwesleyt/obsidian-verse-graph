@@ -1,0 +1,107 @@
+// Compares every file copied from the Bible Journal web app or Scripture Thread
+// with the original as it is now, so keeping in step is a command, not a memory.
+// Development only: it reads the other repos when they are beside this one
+// (or where BIBLE_JOURNAL_APP / SCRIPTURE_THREAD point), and nothing in the build
+// or the tests uses it. Changes nothing; re-copying stays a deliberate step.
+//
+//   npm run compare-app            which copies differ, and what the app has that isn't copied
+//   npm run compare-app -- --diff  the differences themselves
+import { execFileSync } from 'node:child_process';
+import { existsSync, readFileSync, readdirSync, writeFileSync, mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+
+const REPOS = {
+	'bible-journal-app': process.env.BIBLE_JOURNAL_APP ?? resolve('..', 'bible-journal-app'),
+	'obsidian-scripture-thread': process.env.SCRIPTURE_THREAD ?? resolve('..', 'obsidian-scripture-thread'),
+};
+const SHOW_DIFF = process.argv.includes('--diff');
+const HEADER = /^\/\/ (Excerpt copied|Copied) from [^(]*\(([^/]+)\/([^)]+)\)/;
+
+/** The copy without its provenance header: the comment lines at the top and the blank line after. */
+function body(text) {
+	const lines = text.split('\n');
+	let start = 0;
+	while (lines[start]?.startsWith('//')) start++;
+	if (lines[start] === '') start++;
+	return lines.slice(start).join('\n');
+}
+
+/** The one change copies make: the app's "@/lib/" imports made relative. */
+function asCopied(original) {
+	return original.replaceAll('@/lib/', './');
+}
+
+/** An excerpt is in step when each piece of it is still in the original, word for word. */
+function excerptPieces(copy) {
+	return copy.split(/\n(?=\/\*\*)/).map((piece) => piece.trim()).filter(Boolean);
+}
+
+function diff(copy, original) {
+	const dir = mkdtempSync(join(tmpdir(), 'compare-app-'));
+	writeFileSync(join(dir, 'copy'), copy);
+	writeFileSync(join(dir, 'original'), original);
+	try {
+		execFileSync('diff', ['-u', '--label', 'copy', '--label', 'original', join(dir, 'copy'), join(dir, 'original')]);
+		return '';
+	} catch (error) {
+		return String(error.stdout);
+	}
+}
+
+const results = { same: [], changed: [], missing: [], unreadable: new Set() };
+const copiedFromApp = new Set();
+
+for (const name of readdirSync('src').filter((file) => file.endsWith('.ts')).sort()) {
+	const text = readFileSync(join('src', name), 'utf8');
+	const match = HEADER.exec(text);
+	if (!match) continue;
+	const [, kind, repo, path] = match;
+	if (repo === 'bible-journal-app') copiedFromApp.add(path);
+	const root = REPOS[repo];
+	if (!root || !existsSync(root)) {
+		results.unreadable.add(repo);
+		continue;
+	}
+	const source = join(root, path);
+	if (!existsSync(source)) {
+		results.missing.push(`src/${name} ← ${repo}/${path}`);
+		continue;
+	}
+	const original = asCopied(readFileSync(source, 'utf8'));
+	const copy = body(text);
+	const inStep =
+		kind === 'Excerpt copied'
+			? excerptPieces(copy).every((piece) => original.includes(piece))
+			: copy === original;
+	if (inStep) results.same.push(`src/${name}`);
+	else results.changed.push({ name: `src/${name}`, from: `${repo}/${path}`, diff: kind === 'Excerpt copied' ? '' : diff(copy, original) });
+}
+
+// Graph rules the app has that nothing here copies.
+const appLib = join(REPOS['bible-journal-app'], 'src', 'lib');
+const notCopied = existsSync(appLib)
+	? readdirSync(appLib)
+			.filter((file) => /^graph-.*\.ts$/.test(file) && !file.endsWith('.test.ts'))
+			.map((file) => `src/lib/${file}`)
+			.filter((path) => !copiedFromApp.has(path))
+	: [];
+
+console.log(`In step: ${results.same.length} files.`);
+if (results.changed.length > 0) {
+	console.log(`\nChanged in the original since it was copied (${results.changed.length}):`);
+	for (const { name, from, diff: text } of results.changed) {
+		console.log(`  ${name} ← ${from}${text === '' ? ' (an excerpt: a piece of it is no longer in the original)' : ''}`);
+		if (SHOW_DIFF && text) console.log(text.replace(/^/gm, '    '));
+	}
+	if (!SHOW_DIFF) console.log('  Run with --diff to see the differences.');
+}
+if (results.missing.length > 0) {
+	console.log('\nThe original is gone (renamed or removed):');
+	for (const line of results.missing) console.log(`  ${line}`);
+}
+if (notCopied.length > 0) {
+	console.log('\nGraph rules in the web app that are not copied here:');
+	for (const path of notCopied) console.log(`  bible-journal-app/${path}`);
+}
+for (const repo of results.unreadable) console.log(`\nNot found, so not compared: ${repo} (expected at ${REPOS[repo] ?? '?'})`);

@@ -1,4 +1,4 @@
-// Copied from the Bible Journal web app (bible-journal-app/src/lib/graph-layout.ts) on 2026-09-26.
+// Copied from the Bible Journal web app (bible-journal-app/src/lib/graph-layout.ts) on 2026-09-27.
 // Only change: "@/lib/" imports made relative. Keep in step with the original rather than editing here.
 
 import { bookPath, type GraphBookNode, type GraphTestamentNode } from "./graph-rules";
@@ -356,6 +356,13 @@ export function blendLayouts(from: Blend, to: GraphLayout, t: number): Blend {
 export function easeOut(t: number): number {
   return 1 - Math.pow(1 - Math.min(1, Math.max(0, t)), 3);
 }
+
+/**
+ * `easeOut` as a CSS timing function, for a movement the browser animates that
+ * has to keep pace with one this file blends -- the view following the
+ * selection while *Hide dimmed* closes the tree up round it (item 8.7).
+ */
+export const EASE_OUT_CSS = "cubic-bezier(0.33, 1, 0.68, 1)";
 
 /** How long an open or a close takes: noticeable, never in the way. */
 export const OPEN_CLOSE_MS = 220;

@@ -63,8 +63,11 @@ export class GraphCanvas {
 	private showAllLines = false;
 	/** The toolbar's Hide dimmed (the web app's item 8.7). */
 	private hideDimmed = false;
-	/** What Hide dimmed last closed the graph up round, to recentre when it changes. */
+	/** What Hide dimmed last closed the graph up round, and whether it is taking things away. */
 	private hidingFor: string | null = null;
+	private hiding = false;
+	/** The last drawing, for where the selection was before a change. */
+	private before: { layout: GraphLayout; column: GraphEntry[]; besideY: number | undefined } | null = null;
 	private placed = false;
 
 	constructor(
@@ -91,7 +94,7 @@ export class GraphCanvas {
 		const zoomIn = button('+', () => this.attached()?.zoomStep('in'), 'Zoom in');
 		divider();
 		const fit = button('Fit', () => this.attached()?.fit());
-		const center = button('', () => this.attached()?.center(), 'Center the graph');
+		const center = button('', () => this.attached()?.center(this.hiding), 'Center the graph');
 		setIcon(center, 'crosshair');
 		divider();
 		const lines = button('Show all lines', () => {
@@ -159,7 +162,7 @@ export class GraphCanvas {
 				if (!empty) this.attached()?.fit();
 				return;
 			case 'center':
-				if (!empty) this.attached()?.center();
+				if (!empty) this.attached()?.center(this.hiding);
 				return;
 			case 'select':
 			case 'move': {
@@ -256,12 +259,19 @@ export class GraphCanvas {
 		this.drawing.show({ ...model, column, moreCount, layout, lit, hiding, showAllLines: this.showAllLines });
 		this.onResize();
 
-		// What is left is somewhere else now: bring it back where the graph opens.
+		// Hide dimmed keeps the selection still and closes everything else up round it,
+		// as in the web app: when hiding comes on or goes off, or the selection changes
+		// while it is on, the view moves by as much as the selected box did.
 		const hidingFor = hiding ? [...lit].join('\n') : null;
-		if (hidingFor !== null && hidingFor !== this.hidingFor) {
-			window.requestAnimationFrame(() => this.attached()?.center());
+		const now = { layout, column, besideY: beside?.y };
+		if (hidingFor !== this.hidingFor && this.before) {
+			const wasY = selectionY({ ...this.before, entry: model.entry, verse: model.verse });
+			const nowY = selectionY({ ...now, entry: model.entry, verse: model.verse });
+			if (wasY !== undefined && nowY !== undefined && wasY !== nowY) this.attached()?.keepStill(wasY, nowY, remPx());
 		}
 		this.hidingFor = hidingFor;
+		this.hiding = hiding;
+		this.before = now;
 	}
 
 	/** The rows showing, and a screen either side, in rem from the drawing's top. */
@@ -316,4 +326,29 @@ export class GraphCanvas {
 /** Pixels per rem, read off the page. */
 function remPx(): number {
 	return parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+}
+
+/**
+ * Where the selection's box is, in rem down the drawing: the chosen note's
+ * row, or the selected verse, or the box hiding it (`anchorFor`). The web
+ * app's `selectionY`, in `GraphCanvas.tsx`.
+ */
+function selectionY({
+	layout,
+	column,
+	besideY,
+	entry,
+	verse,
+}: {
+	layout: GraphLayout;
+	column: readonly GraphEntry[];
+	besideY: number | undefined;
+	entry: GraphEntry | null;
+	verse: VerseRange | null;
+}): number | undefined {
+	if (entry) {
+		const index = column.findIndex((item) => item.id === entry.id);
+		return index === -1 ? undefined : entryRowTop(index, besideY);
+	}
+	return verse ? anchorFor(layout, verse, rangeKey(verse))?.y : undefined;
 }

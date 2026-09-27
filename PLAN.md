@@ -107,7 +107,7 @@ The plugin is meant to end up with everything the web app's Graph screen does (`
 | 8.4 Filters: books, a reference, a date range, tags, Reset | Merged | Done, session 4 | Nothing. `graph-filter-rules.ts` copied; the filtering the app does in SQL is `graph-filters.ts`. Tags are Obsidian's, from its in-memory cache |
 | 8.5 Read-only note panel, and *Show in graph* from the editor | Merged | Done, sessions 2 and 4 | Nothing. **Show current note in graph** (command) and **Show in verse graph** (a note's menu). The chosen note is kept in the view's saved state, the plugin's version of the app's address |
 | 8.6 Literary categories | Merged | Done, session 4 | Nothing. **Settings → Verse Graph → Literary categories**, off by default |
-| 8.7 Hide dimmed | Merged 2026-09-27 | Done, session 4 | Nothing |
+| 8.7 Hide dimmed | Merged 2026-09-27 | Done, sessions 4 and 5 | Nothing. Session 5 took in the app's later change: the selection stays still |
 | 8.8 Center | Merged | Done, session 2 | Nothing |
 
 **Session 4: Wave 8 parity.** Items 8.4, 8.5's *Show in graph*, 8.6's setting and 8.7's toggle, each checked side by side against the app. Replay waits for the app, and glide for phone support. If the app adds to Wave 8 later, the new item lands here as a row.
@@ -116,11 +116,14 @@ The plugin is meant to end up with everything the web app's Graph screen does (`
 
 Wave 8 is done except Replay, and `0.2.0` is in your real vault (2026-09-27). Whatever gets in the way in your real journal outranks the order below.
 
-**1. Session 5: small things found so far.** Each is small, and none needs the app:
+**1. Session 5: small things. Done.**
 
-- **Keep the selected verse and what's open in the saved state too**, not only the chosen note, so a graph reopened at launch comes back exactly as it was. The app has the same gap as TD-117 (*a selection is gone after going back or reloading*); the plugin can close it without waiting.
-- **A dev-only `npm run compare-app`** that diffs every copied file against the web app's current version and lists what changed, so keeping in step is a command rather than a memory. It reads the app's folder only when it's there, and nothing in the build or tests needs it, so the two stay separate.
-- **Declarative settings**, when the installed `obsidian` types have Obsidian 1.13's settings API (the one lint warning), so **Literary categories** turns up in Obsidian's settings search.
+- **The whole view is kept with its tab**: the selected verse, the chosen note and what's open (`view-state.ts`), so a graph reopened at launch comes back as it was left. The app still loses the verse and what's open (its TD-117).
+- **`npm run compare-app`** compares every copied file with the original as it is now, and lists the app's graph rules not copied here; `--diff` shows the differences. Development only: it reads the other repos when they're beside this one, and nothing in the build or tests needs it. Its first run found the app's refinement of 8.7, below.
+- **Declarative settings**: the `obsidian` types are 1.13.1, and **Literary categories** is declared, so it turns up in Obsidian's settings search. The old way still draws it on 1.11 and 1.12.
+- **`test-vault-big` has every case**, not only single verses: ranges, chapters, chapter ranges, unconverted references, book links, tags, `date` properties, property links, commentary in a verse note and a duplicate, across its 5,000 journal notes. It's the vault to test in; `test-vault` stays for checking a case by hand.
+- **The version installed**, read only, at the bottom of **Settings → Verse Graph**.
+- **8.7 brought back in step** with the app's commit `02cd395`: Hide dimmed keeps the selection where it is on screen and closes the rest up round it (`keepStill`), instead of recentring, and Center while hiding centres what's left on each axis (`centerEachAxis`).
 
 **2. Session 6: phone and tablet.** The riskiest part, and the one the plan put last:
 

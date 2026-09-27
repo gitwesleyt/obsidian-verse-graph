@@ -1,4 +1,4 @@
-// Copied from the Bible Journal web app (bible-journal-app/src/lib/graph-zoom-rules.test.ts) on 2026-09-26.
+// Copied from the Bible Journal web app (bible-journal-app/src/lib/graph-zoom-rules.test.ts) on 2026-09-27.
 // Unchanged. Keep in step with the original rather than editing here.
 
 import { describe, expect, it } from "vitest";
@@ -10,9 +10,11 @@ import {
   MIN_ZOOM,
   ZOOM_STEP,
   bringIntoView,
+  centerEachAxis,
   centerView,
   clampZoom,
   fitView,
+  keepStill,
   keepInView,
   nextZoomStep,
   OPENING_ZOOM,
@@ -184,6 +186,25 @@ describe("openingView", () => {
     expect(scale).toBe(OPENING_ZOOM);
     expect(pan.x * scale).toBe(FIT_MARGIN);
     expect(pan.y * scale).toBe(FIT_MARGIN);
+  });
+});
+
+describe("centerEachAxis -- Center while hiding (item 8.7)", () => {
+  it("centres a short, wide graph down the screen and pins it to the left", () => {
+    const view = centerEachAxis({ width: 2000, height: 100 }, { width: 1000, height: 600 }, 1, { top: 60, bottom: 0 });
+    expect(view.scale).toBe(1);
+    expect(view.pan.x).toBe(24);
+    expect(view.pan.y).toBe(60 + (540 - 100) / 2);
+  });
+});
+
+describe("keepStill (item 8.7)", () => {
+  it("moves the drawing by as much as the box moved, the other way", () => {
+    expect(keepStill({ x: -40, y: -900 }, 120, 8, 16)).toEqual({ x: -40, y: -900 + 112 * 16 });
+  });
+
+  it("does nothing when the box did not move", () => {
+    expect(keepStill({ x: 5, y: 7 }, 30, 30, 16)).toEqual({ x: 5, y: 7 });
   });
 });
 

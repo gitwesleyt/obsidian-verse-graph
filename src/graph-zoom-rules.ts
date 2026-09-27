@@ -1,4 +1,4 @@
-// Copied from the Bible Journal web app (bible-journal-app/src/lib/graph-zoom-rules.ts) on 2026-09-26.
+// Copied from the Bible Journal web app (bible-journal-app/src/lib/graph-zoom-rules.ts) on 2026-09-27.
 // Unchanged. Keep in step with the original rather than editing here.
 
 /**
@@ -239,6 +239,33 @@ export function centerView(
       ? placeAt(content, viewport, scale, inset)
       : { x: FIT_MARGIN / scale, y: (inset.top + FIT_MARGIN) / scale },
   };
+}
+
+/**
+ * Center while *Hide dimmed* is taking things away (item 8.7): **each axis on
+ * its own**, which `centerView` refuses for the whole tree on purpose. What is
+ * left is short and wide -- the columns keep their width, so it rarely fits
+ * across -- and the whole-graph test then pinned it to the top-left corner,
+ * which the app owner, looking at the selection, did not read as centred.
+ */
+export function centerEachAxis(
+  content: Size,
+  viewport: Size,
+  scale: number,
+  inset: Inset = NO_INSET,
+): { scale: number; pan: Point } {
+  return { scale, pan: placeAt(content, viewport, scale, inset) };
+}
+
+/**
+ * The pan that keeps one box where it is on the screen while the drawing moves
+ * it from `beforeY` to `afterY` (rem down the drawing) -- what *Hide dimmed*
+ * does to the selection, so what closes up closes up round it (item 8.7).
+ * The pan is in the drawing's own pixels, before the zoom, so the zoom does
+ * not enter into it.
+ */
+export function keepStill(pan: Point, beforeY: number, afterY: number, remPx: number): Point {
+  return { x: pan.x, y: pan.y - (afterY - beforeY) * remPx };
 }
 
 /** Centred on an axis the graph fits on, pinned to the margin on one it does not. */

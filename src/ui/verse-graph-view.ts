@@ -26,6 +26,7 @@ import {
 import { dateFacets, filterGraph, opensForReference, tagCounts, unscopedCitations } from '../graph-filters';
 import { linkIndexOf, noteFactsOf, tagsOf } from '../obsidian-link-index';
 import type { VerseGraphSettings } from '../settings';
+import { readViewState, type ViewState } from '../view-state';
 import { vaultToGraph, type VaultGraph } from '../vault-graph';
 import { FilterBar } from './filter-bar';
 import type { FilterContext } from './filter-modals';
@@ -59,8 +60,9 @@ export class VerseGraphView extends ItemView {
 	private readonly rebuildSoon = debounce(() => this.rebuild(), REBUILD_PAUSE_MS, true);
 	/** Whether the graph has been built from the link index yet. */
 	private built = false;
-	/** A note to choose once the graph is built, from saved state. */
+	/** A note to show, or a saved state to restore, once the graph is built. */
 	private pendingEntry: string | null = null;
+	private pendingState: Partial<ViewState> | null = null;
 
 	constructor(
 		leaf: WorkspaceLeaf,
@@ -154,21 +156,32 @@ export class VerseGraphView extends ItemView {
 		this.canvas?.onResize();
 	}
 
-	/**
-	 * The chosen note is kept with the view, as the web app keeps it in the
-	 * address (its item 8.5), so a graph reopened at launch opens on it again.
-	 */
+	/** Kept with the tab, so a graph reopened at launch comes back as it was left (`view-state.ts`). */
 	getState(): Record<string, unknown> {
-		return { ...super.getState(), entry: this.selection.entryId };
+		const state: ViewState = { verse: this.selection.verse, entry: this.selection.entryId, open: [...this.openKeys] };
+		return { ...super.getState(), ...state };
 	}
 
 	async setState(state: unknown, result: ViewStateResult): Promise<void> {
-		const entry = (state as { entry?: unknown } | null)?.entry;
-		if (typeof entry === 'string') {
-			if (this.built) this.showNote(entry, false);
-			else this.pendingEntry = entry;
-		}
+		const saved = readViewState(state);
+		if (this.built) this.restore(saved);
+		else this.pendingState = saved;
 		await super.setState(state, result);
+	}
+
+	/** What was open, the verse and the note, as saved; whatever has since gone is let go of. */
+	private restore(saved: Partial<ViewState>): void {
+		if (saved.open) this.openKeys = new Set(saved.open);
+		const verse = saved.verse ?? null;
+		const entryId = saved.entry ?? null;
+		if (entryId && !verse) {
+			const index = this.graph.entries.findIndex((entry) => entry.id === entryId);
+			if (index >= 0) this.columnLength = Math.max(this.columnLength, Math.ceil((index + 1) / COLUMN_PAGE) * COLUMN_PAGE);
+		}
+		this.selection = keepSelection({ verse, entryId, panelShowing: entryId !== null }, this.graph.rows, this.graph.entries);
+		this.draw();
+		const chosen = this.selection.entryId;
+		if (chosen) window.requestAnimationFrame(() => this.canvas?.showEntry(chosen));
 	}
 
 	/**
@@ -201,6 +214,11 @@ export class VerseGraphView extends ItemView {
 		this.full = vaultToGraph(linkIndexOf(this.app), noteFactsOf(this.app));
 		this.built = true;
 		this.applyFilters();
+		if (this.pendingState) {
+			const saved = this.pendingState;
+			this.pendingState = null;
+			this.restore(saved);
+		}
 		if (this.pendingEntry) {
 			const entry = this.pendingEntry;
 			this.pendingEntry = null;
@@ -252,8 +270,6 @@ export class VerseGraphView extends ItemView {
 	}
 
 	private select(selection: Selection): void {
-		// The chosen note is part of the view's saved state.
-		if (selection.entryId !== this.selection.entryId) this.app.workspace.requestSaveLayout();
 		this.selection = selection;
 		this.draw();
 	}
@@ -286,6 +302,8 @@ export class VerseGraphView extends ItemView {
 	}
 
 	private draw(): void {
+		// What is selected and open is the view's saved state; Obsidian waits a moment before saving.
+		this.app.workspace.requestSaveLayout();
 		const { rows, entries } = this.graph;
 		const { verse, entryId, panelShowing } = this.selection;
 

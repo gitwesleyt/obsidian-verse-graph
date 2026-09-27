@@ -3,9 +3,11 @@ import {
 	MAX_ZOOM,
 	MIN_ZOOM,
 	bringIntoView,
+	centerEachAxis,
 	centerView,
 	fitView,
 	keepInView,
+	keepStill,
 	nextZoomStep,
 	openingView,
 	samePoint,
@@ -18,6 +20,7 @@ import {
 	type Point,
 	type Size,
 } from '../graph-zoom-rules';
+import { EASE_OUT_CSS, OPEN_CLOSE_MS } from '../graph-layout';
 
 /**
  * Pan and zoom over the graph, the desktop half of the web app's
@@ -169,11 +172,26 @@ export class PanZoom {
 		this.apply(fitView(content, viewport, inset), true);
 	}
 
-	/** Back to where the graph opens, at the zoom it is at now. */
-	center(): void {
+	/**
+	 * Back to where the graph opens, at the zoom it is at now. While Hide dimmed
+	 * is taking things away, the middle of what is left instead, each axis on
+	 * its own (`centerEachAxis`, the web app's item 8.7).
+	 */
+	center(hiding = false): void {
 		const { content, viewport, inset } = this.sizes();
-		const { pan } = centerView(content, viewport, this.pz.getScale(), inset);
+		const { pan } = (hiding ? centerEachAxis : centerView)(content, viewport, this.pz.getScale(), inset);
 		this.pz.pan(pan.x, pan.y, { force: true, animate: true });
+	}
+
+	/**
+	 * Moves the view by as much as one box moved down the drawing, the other
+	 * way, over the same slide as the boxes, so the box stays where it was on
+	 * screen (`keepStill`). `beforeY` and `afterY` are in rem.
+	 */
+	keepStill(beforeY: number, afterY: number, remPx: number): void {
+		const next = keepStill(this.pz.getPan(), beforeY, afterY, remPx);
+		const animate = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+		this.pz.pan(next.x, next.y, { force: true, animate, duration: OPEN_CLOSE_MS, easing: EASE_OUT_CSS });
 	}
 
 	/** − and +, about the middle of the canvas. */

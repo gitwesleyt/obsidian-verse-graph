@@ -325,6 +325,20 @@
 	background-color: var(--vg-lit);
 }
 
+/*
+ * Obsidian on a phone flashes a tapped button grey (its `mobile-tap` class) for
+ * a moment. On the toolbar that reads as a toggle not letting go, so its
+ * buttons keep only their own look: tinted when on, plain when off.
+ */
+.verse-graph-toolbar button.mobile-tap {
+	background-color: transparent;
+	box-shadow: none;
+}
+
+.verse-graph-toolbar button.is-active.mobile-tap {
+	background-color: var(--vg-lit);
+}
+
 .verse-graph-percent {
 	min-width: 3rem;
 	text-align: center;

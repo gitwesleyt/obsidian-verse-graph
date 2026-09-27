@@ -119,10 +119,13 @@ export class PanZoom {
 			(event) => {
 				// A finger landing on a gliding graph catches it, as on any phone.
 				this.stopGlide();
+				// A new press is a new gesture, wherever it lands: the toolbar included. A mouse
+				// drag ends in a click that clears this, but a finger drag ends in none, so
+				// without this the next tap after panning, on Center or a note, was swallowed.
+				if (pointers.size === 0) dragged = false;
 				if ((event.target as Element).closest(`.${CONTROL}`)) return;
 				if (event.pointerType === 'mouse' && event.button !== 0) return;
 				if (pointers.size === 0) {
-					dragged = false;
 					captured = false;
 					pressedAt = this.toViewport(event);
 					viewport.focus({ preventScroll: true });

@@ -327,15 +327,16 @@
 
 /*
  * Obsidian on a phone flashes a tapped button grey (its `mobile-tap` class) for
- * a moment. On the toolbar that reads as a toggle not letting go, so its
- * buttons keep only their own look: tinted when on, plain when off.
+ * a moment. That is the only sign Expand, Fit and the rest were tapped, so they
+ * keep it; on a toggle it reads as the toggle not letting go, so Show all lines
+ * and Hide dimmed keep only their own look: tinted when on, plain when off.
  */
-.verse-graph-toolbar button.mobile-tap {
+.verse-graph-toolbar button.is-toggle.mobile-tap {
 	background-color: transparent;
 	box-shadow: none;
 }
 
-.verse-graph-toolbar button.is-active.mobile-tap {
+.verse-graph-toolbar button.is-toggle.is-active.mobile-tap {
 	background-color: var(--vg-lit);
 }
 

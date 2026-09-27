@@ -118,6 +118,9 @@ export class GraphCanvas {
 			},
 			'With something selected, take away everything it dims',
 		);
+		// The two that stay on or off, rather than do something once: their tint is their feedback.
+		lines.addClass('is-toggle');
+		hide.addClass('is-toggle');
 		this.controls = { out, in: zoomIn, fit, center, lines, expand, collapse, hide };
 
 		this.viewport.createDiv({

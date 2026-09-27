@@ -19,7 +19,7 @@ The first version draws the tree, lets you select, and opens notes. Anything tha
 | Updates when a note changes | Yes | Otherwise it goes stale after one edit |
 | Command "Open verse graph" and a ribbon icon | Yes | How Obsidian plugins are opened |
 | Filters (books, reference, dates, tags) | Yes, since session 4 | Item 8.4, built in the Wave 8 parity session |
-| Phone and tablet (pinch, flick, touch gestures) | Yes, since session 6 | Built from the app's gestures and phone layout; tried on a phone once released |
+| Phone and tablet (pinch, flick, touch gestures) | Yes, since session 6 | Built from the app's gestures and phone layout; tried on your phone |
 | Slide animations and eased selection | Yes, since session 3 | You asked for them: without them you couldn't tell where things went. Flick glide waits for phone support, since it is for a finger |
 | Keyboard walking of the tree, and `+` `-` `0` `C` | Yes, since session 3 | The app's `graph-key-rules.ts`, copied |
 | Replay over time (item 8.3) | No | Not built in the app either |
@@ -125,14 +125,14 @@ Wave 8 is done except Replay, and `0.2.0` is in your real vault (2026-09-27). Wh
 - **The version installed**, read only, at the bottom of **Settings → Verse Graph**.
 - **8.7 brought back in step** with the app's commit `02cd395`: Hide dimmed keeps the selection where it is on screen and closes the rest up round it (`keepStill`), instead of recentring, and Center while hiding centres what's left on each axis (`centerEachAxis`).
 
-**2. Session 6: phone and tablet. Built; to be tried on a phone.**
+**2. Session 6: phone and tablet. Done, and tried on your phone at `0.4.6` (2026-09-27).**
 
 - **Touch, as the app does it**: one finger pans, two pinch (`pinchTo`), and a count of fingers changing starts the gesture again from where the graph is; a flick glides a little and slows (`graph-glide-rules.ts`, copied); a double tap zooms one step in on the spot. The canvas takes every touch, and a swipe on it doesn't reach Obsidian's side panels.
 - **A narrow graph gets the phone layout**: the toolbar along the bottom, the filters one row that scrolls sideways, and the note panel a sheet along the bottom that arrives as its title and opens from it. The app draws this below 1100px of window; the plugin goes by the graph's own width, under 50rem, so a narrow pane on a computer gets it too.
 - **44px controls** whenever Obsidian is on a phone or tablet.
 - **`isDesktopOnly: false`.** Nothing in the plugin uses Node or Electron.
 - **Not done: the Books sheet that stages** (the app's *Show 5 verses*). The pickers are Obsidian dialogs, which a phone shows full screen, and they apply as ticked, as on a computer.
-- **To try it on the phone**: install through BRAT there as on the computer, once a release has it.
+- **On the phone, BRAT needs the token in that device's own secret storage.** Obsidian's secret storage doesn't sync, so a vault synced from the computer brings BRAT's token *name* (`scripture-thread`) without the token; BRAT then gets a 404 from GitHub for both private repos until a secret of that name is added on the phone.
 
 **3. Following the app, as it changes.** Each lands as a row in the Wave 8 table:
 
@@ -165,6 +165,13 @@ A badly built plugin freezes Obsidian rather than crashing it, or quietly shows 
 Session 3's 5,000-note timing check is what proves these rules hold, not what the plan says.
 
 ## Changes since the plan was written
+
+- **Session 6, from trying it on the phone (`0.4.1`–`0.4.6`):**
+  - **The graph ends above Obsidian's floating navigation bar**, by Obsidian's own `--view-bottom-spacing`; the toolbar along the bottom was under it.
+  - **The narrow toolbar is two fixed rows**: − % + Fit ⌖, then Show all lines, Expand, Collapse, Hide dimmed. Tighter buttons, smaller text and no dividers, still 44px tall. Squeezed onto one row the labels overlapped; wrapped freely it took three rows.
+  - **Hover styles only where there's a pointer to hover with.** A touch screen keeps a tapped button hovered, so a toggle switched off stayed grey and looked still on.
+  - **Obsidian's grey tap flash is kept on the action buttons and skipped on the two toggles.** The flash is the only sign Expand, Fit and the rest were tapped; on a toggle, its tint is the sign.
+  - **The first tap after panning works.** A finger drag ends in no click, so the flag it left swallowed the next tap, on Center or a note; every new press now clears it.
 
 - **Session 4: the filter pickers are Obsidian dialogs**, not the app's popovers: Books, Dates and Tags are modals that apply as you tick, as the app does at desktop width, and Reference is Obsidian's type-ahead suggester. A chip in use is filled and has an × of its own.
 - **Session 4: only three pieces of the app's `entry-filter-rules.ts` are copied** (`monthName`, `weekdayName`, `weekdayPlural`, `EntryFacet`), each unchanged. The rest of that file is Home's filter, with a chain of imports the plugin has no use for.

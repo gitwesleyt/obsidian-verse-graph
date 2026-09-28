@@ -26,6 +26,10 @@ const CAUGHT_UP = process.argv.includes('--caught-up');
 const MARKER = 'app-caught-up.json';
 /** What in the app is the graph: its screen, its rules, its spec and Wave 8's decisions. */
 const GRAPH_PATHS = ['src/app/journal/graph', 'src/lib/graph-*', 'spec/graph.md', 'v3/decisions/8.*', 'src/components/ui/icons.tsx'];
+/** App graph rules the plugin has no use for, and why, so they are not reported as missing. */
+const NOT_NEEDED = {
+	'src/lib/graph-address-rules.ts': "the app's ?entry= address; Obsidian keeps the chosen note in the view's saved state",
+};
 const HEADER = /^\/\/ (Excerpt copied|Copied) from [^(]*\(([^/]+)\/([^)]+)\)/;
 
 /** The copy without its provenance header: the comment lines at the top and the blank line after. */
@@ -94,7 +98,7 @@ const notCopied = existsSync(appLib)
 	? readdirSync(appLib)
 			.filter((file) => /^graph-.*\.ts$/.test(file) && !file.endsWith('.test.ts'))
 			.map((file) => `src/lib/${file}`)
-			.filter((path) => !copiedFromApp.has(path))
+			.filter((path) => !copiedFromApp.has(path) && !(path in NOT_NEEDED))
 	: [];
 
 console.log(`In step: ${results.same.length} files.`);

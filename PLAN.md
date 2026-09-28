@@ -144,7 +144,7 @@ Wave 8 is done except Replay, and `0.2.0` is in your real vault (2026-09-27). Wh
 - **`npm run compare-app` also lists the web app's graph commits** since the one in `app-caught-up.json`, because not every call is in a copied file: the Collapse and Expand swap was in the app's screen code, and was missed until you pointed it out. `-- --caught-up` moves the marker on.
 - **`graph-layout.ts` re-copied** for the app's fix that drops a box once it has faded to nothing, whether or not its slide finished.
 
-**3a. Session 8: verse blocks from Scripture Thread (its `PLAN.md`, "Verse blocks", step 5).**
+**3a. Session 8: verse blocks from Scripture Thread (its `PLAN.md`, "Verse blocks", step 5). Done, and tried on your phone at `0.6.0-beta.1` (2026-09-28).**
 
 - **The note panel boxes the verse block citing the selected verse**, with Scripture Thread's grey rounded border, and scrolls to it, instead of tinting the first paragraph. The rest of the note stays readable round it. A citation in no block (a heading, a callout, the properties) keeps the tint.
 - **`verse-block-rules.ts`, its test and `spec/verse-blocks.md` copied** from Scripture Thread; `npm run compare-app` now compares `spec/*.md` copies too.

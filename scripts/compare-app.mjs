@@ -30,13 +30,20 @@ const GRAPH_PATHS = ['src/app/journal/graph', 'src/lib/graph-*', 'spec/graph.md'
 const NOT_NEEDED = {
 	'src/lib/graph-address-rules.ts': "the app's ?entry= address; Obsidian keeps the chosen note in the view's saved state",
 };
-const HEADER = /^\/\/ (Excerpt copied|Copied) from [^(]*\(([^/]+)\/([^)]+)\)/;
+const HEADER = /^(?:\/\/|<!--) (Excerpt copied|Copied) from [^(]*\(([^/]+)\/([^)]+)\)/;
+/** Where copies live: the code, and the written rules that go with it. */
+const COPY_FOLDERS = [
+	{ folder: 'src', extension: '.ts' },
+	{ folder: 'spec', extension: '.md' },
+];
+
+const isHeaderLine = (line) => line.startsWith('//') || /^<!--.*-->$/.test(line);
 
 /** The copy without its provenance header: the comment lines at the top and the blank line after. */
 function body(text) {
 	const lines = text.split('\n');
 	let start = 0;
-	while (lines[start]?.startsWith('//')) start++;
+	while (lines[start] !== undefined && isHeaderLine(lines[start])) start++;
 	if (lines[start] === '') start++;
 	return lines.slice(start).join('\n');
 }
@@ -66,8 +73,17 @@ function diff(copy, original) {
 const results = { same: [], changed: [], missing: [], unreadable: new Set() };
 const copiedFromApp = new Set();
 
-for (const name of readdirSync('src').filter((file) => file.endsWith('.ts')).sort()) {
-	const text = readFileSync(join('src', name), 'utf8');
+const copies = COPY_FOLDERS.flatMap(({ folder, extension }) =>
+	existsSync(folder)
+		? readdirSync(folder)
+				.filter((file) => file.endsWith(extension))
+				.sort()
+				.map((file) => `${folder}/${file}`)
+		: [],
+);
+
+for (const name of copies) {
+	const text = readFileSync(name, 'utf8');
 	const match = HEADER.exec(text);
 	if (!match) continue;
 	const [, kind, repo, path] = match;
@@ -79,7 +95,7 @@ for (const name of readdirSync('src').filter((file) => file.endsWith('.ts')).sor
 	}
 	const source = join(root, path);
 	if (!existsSync(source)) {
-		results.missing.push(`src/${name} ← ${repo}/${path}`);
+		results.missing.push(`${name} ← ${repo}/${path}`);
 		continue;
 	}
 	const original = asCopied(readFileSync(source, 'utf8'));
@@ -88,8 +104,8 @@ for (const name of readdirSync('src').filter((file) => file.endsWith('.ts')).sor
 		kind === 'Excerpt copied'
 			? excerptPieces(copy).every((piece) => original.includes(piece))
 			: copy === original;
-	if (inStep) results.same.push(`src/${name}`);
-	else results.changed.push({ name: `src/${name}`, from: `${repo}/${path}`, diff: kind === 'Excerpt copied' ? '' : diff(copy, original) });
+	if (inStep) results.same.push(name);
+	else results.changed.push({ name, from: `${repo}/${path}`, diff: kind === 'Excerpt copied' ? '' : diff(copy, original) });
 }
 
 // Graph rules the app has that nothing here copies.

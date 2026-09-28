@@ -1,5 +1,6 @@
 import { Component, Keymap, MarkdownRenderer, TFile, moment, setIcon, type App } from 'obsidian';
 import { parseBibleLink } from '../bible-link';
+import { splitAtCitingBlock, type NoteAroundBlock } from '../citing-block';
 import { rangeKey, rangeLabel, type GraphEntry, type VerseRange } from '../graph-rules';
 import { plural } from '../graph-selection';
 import { rangesOf } from '../vault-graph';
@@ -7,8 +8,8 @@ import { rangesOf } from '../vault-graph';
 /**
  * The read-only note panel beside the canvas, as the web app's
  * `GraphEntryPanel.tsx`: the chosen note's title, date and the verses it cites,
- * then the note itself, scrolled to the first paragraph citing the selected
- * verse, with Open note at the bottom. On a narrow graph, a sheet along the
+ * then the note itself, scrolled to the verse block citing the selected verse
+ * and boxed as Scripture Thread boxes it, with Open note at the bottom. On a narrow graph, a sheet along the
  * bottom that opens from its title, as the app's is below its line.
  *
  * It reads only the one chosen note's text. The graph itself never does.
@@ -109,10 +110,14 @@ export class NotePanel {
 		}
 
 		const page = body.createDiv({ cls: 'verse-graph-panel-page markdown-rendered' });
-		await MarkdownRenderer.render(this.app, text, page, file.path, rendered);
+		const citingLine = verse ? this.lineCiting(file, verse) : undefined;
+		const around = citingLine === undefined ? null : splitAtCitingBlock(text, citingLine);
+		let boxed: HTMLElement | null = null;
+		if (around) boxed = await this.renderAroundBlock(page, around, file.path, rendered);
+		else await MarkdownRenderer.render(this.app, text, page, file.path, rendered);
 		this.wireLinks(page, file.path);
 
-		const landed = verse ? this.landOn(page, verse) : null;
+		const landed = boxed ?? (verse ? this.landOn(page, verse) : null);
 		if (landed) {
 			body.scrollTop += landed.getBoundingClientRect().top - body.getBoundingClientRect().top - 24;
 		}
@@ -121,6 +126,27 @@ export class NotePanel {
 		foot.createSpan({ cls: 'verse-graph-muted', text: 'Read-only preview' });
 		const open = foot.createEl('button', { cls: 'mod-cta', text: 'Open note' });
 		open.addEventListener('click', (event) => void this.open(file, verse, event));
+	}
+
+	/**
+	 * The note in three parts, so the verse block citing the verse is an element
+	 * of its own to box, as Scripture Thread boxes it. Returns the block.
+	 */
+	private async renderAroundBlock(
+		page: HTMLElement,
+		around: NoteAroundBlock,
+		sourcePath: string,
+		component: Component,
+	): Promise<HTMLElement> {
+		if (around.before.trim() !== '') {
+			await MarkdownRenderer.render(this.app, around.before, page.createDiv(), sourcePath, component);
+		}
+		const block = page.createDiv({ cls: 'verse-graph-verse-block' });
+		await MarkdownRenderer.render(this.app, around.block, block, sourcePath, component);
+		if (around.after.trim() !== '') {
+			await MarkdownRenderer.render(this.app, around.after, page.createDiv(), sourcePath, component);
+		}
+		return block;
 	}
 
 	/** Links in the rendered note open and preview as they do in a note. */
@@ -135,7 +161,7 @@ export class NotePanel {
 		});
 	}
 
-	/** Marks the first paragraph linking to `verse`, and returns it. */
+	/** Where the citation is in no verse block: marks the first paragraph linking to `verse`, and returns it. */
 	private landOn(page: HTMLElement, verse: VerseRange): HTMLElement | null {
 		const key = rangeKey(verse);
 		for (const link of Array.from(page.querySelectorAll<HTMLAnchorElement>('a.internal-link'))) {

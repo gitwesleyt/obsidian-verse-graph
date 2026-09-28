@@ -526,7 +526,28 @@
 	padding: var(--size-4-2) var(--size-4-5) var(--size-4-5);
 }
 
-/* The paragraph citing the selected verse. */
+/*
+ * The verse block citing the selected verse, boxed as Scripture Thread boxes one
+ * (spec/verse-blocks.md, Drawing): an inset shadow, pulled into the margin and
+ * padded back, so the text sits where it would unboxed. flow-root keeps its
+ * paragraphs' margins inside the box. The variables only alias the theme's.
+ */
+.verse-graph-verse-block {
+	--verse-graph-verse-block-colour: var(--background-modifier-border);
+	--verse-graph-verse-block-gutter: var(--size-4-3);
+	display: flow-root;
+	margin-inline: calc(-1 * var(--verse-graph-verse-block-gutter));
+	padding-inline: var(--verse-graph-verse-block-gutter);
+	border-radius: var(--radius-m);
+	box-shadow: inset 0 0 0 1px var(--verse-graph-verse-block-colour);
+}
+
+/* The theme's plain border colour is too faint on a dark background, so dark themes take its next step up. */
+.theme-dark .verse-graph-verse-block {
+	--verse-graph-verse-block-colour: var(--background-modifier-border-hover);
+}
+
+/* A citation in no verse block (a heading, a callout, the properties): the paragraph citing the selected verse. */
 .verse-graph-landed {
 	margin-inline: calc(-1 * var(--size-4-3));
 	padding: var(--size-4-2) var(--size-4-3);

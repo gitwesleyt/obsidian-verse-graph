@@ -1,12 +1,14 @@
 name: Release Obsidian plugin
 
+# `npm version` makes the tag and `npm run release` checks and pushes it; this publishes it.
+# A tag with a "-" (1.0.1-beta.1) is a BRAT beta: a prerelease whose manifest carries the tag.
 on:
     push:
         tags:
             - '*'
 
 jobs:
-    build:
+    release:
         runs-on: ubuntu-latest
         permissions:
             contents: write
@@ -21,30 +23,36 @@ jobs:
                   node-version: 24
                   cache: 'npm'
 
-            - name: Build plugin
+            - name: Check and build
               run: |
                   npm ci
-                  npm run build
+                  npm run check
 
-            - name: Check for optional styles
-              id: styles
-              run: |
-                  [ -f styles.css ] && echo "exists=true" >> "$GITHUB_OUTPUT" || echo "exists=false" >> "$GITHUB_OUTPUT"
+            - name: Match a beta's manifest to its tag
+              if: contains(github.ref_name, '-')
+              run: node -e "const fs=require('fs');const m=JSON.parse(fs.readFileSync('manifest.json','utf8'));m.version=process.env.TAG;fs.writeFileSync('manifest.json',JSON.stringify(m,null,'\t'))"
+              env:
+                  TAG: ${{ github.ref_name }}
+
+            - name: Refuse a release whose tag isn't the manifest version
+              if: ${{ !contains(github.ref_name, '-') }}
+              run: test "$(node -p "require('./manifest.json').version")" = "$TAG"
+              env:
+                  TAG: ${{ github.ref_name }}
 
             - name: Attest build provenance
               uses: actions/attest@v4
               with:
                   subject-path: |
                       main.js
-                      ${{ steps.styles.outputs.exists == 'true' && 'styles.css' || '' }}
+                      styles.css
 
-            - name: Create release
+            - name: Publish the release
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  TAG: ${{ github.ref_name }}
+                  PRERELEASE: ${{ contains(github.ref_name, '-') && '--prerelease' || '' }}
               run: |
-                  tag="${GITHUB_REF#refs/tags/}"
-
-                  gh release create "$tag" \
-                    --title="$tag" \
-                    --draft \
-                    main.js manifest.json ${{ steps.styles.outputs.exists == 'true' && 'styles.css' || '' }}
+                  gh release create "$TAG" main.js manifest.json styles.css \
+                    --title "$TAG" $PRERELEASE --verify-tag \
+                    --generate-notes

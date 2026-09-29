@@ -162,7 +162,7 @@ Wave 8 is done except Replay, and `0.2.0` is in your real vault (2026-09-27). Wh
 
 Recommended: wait for the app to build Wave 9 first. Its rules don't exist yet, and the whole approach here is copying what the app has settled.
 
-**Still deferred:** listing in Obsidian's community directory. It needs a public repo and a review, and nothing here depends on it.
+**Listing in Obsidian's community directory:** see *Public release* at the end.
 
 ## Keeping Obsidian fast
 
@@ -212,3 +212,40 @@ All taken. The first five were built as recommended; the sixth was dropped.
 - [x] **Plugin name and id.** *Verse Graph*, `verse-graph`. The id can't change now that it's installed.
 - [x] **Private repo, installed through BRAT**, like Scripture Thread. Listing it in Obsidian's community directory can wait.
 - [x] **What counts as "worth continuing".** Dropped: a quick try in your real vault settles it, not a two-week wait. Filters are already built; phone support is next after the small things.
+
+
+---
+
+# Public release: the community directory
+
+The same checks Scripture Thread went through on 2026-09-29, against Obsidian's Developer policies,
+Submission requirements for plugins and Plugin guidelines. Submission is through
+community.obsidian.md, with an automated review.
+
+## Decisions
+- [x] Released as `1.0.0`: going public is the first stable version
+- [x] The repository goes public; no secrets in its history
+- [x] Releases come from GitHub Actions, with build provenance, once the repo is public
+- [x] The copy headers still name the private web app, which `compare-app` needs; the README says
+      it's private and that nothing here needs it to build or test
+- [x] No `fundingUrl`
+- [x] LICENSE names you, not the sample template's Dynalist Inc.
+
+## Fixes
+- [x] README: install from Community plugins, BRAT without a token, by hand, and a Privacy
+      section; "desktop only for now" removed, since `isDesktopOnly` is false and it was tried
+      on the phone in session 6
+- [x] The sample template's `AGENTS.md` removed
+- [x] `release.yml` and `lint.yml` as in Scripture Thread: a tag push publishes after
+      `npm run check`, with provenance; a tag with a `-` is a prerelease beta; a release tag must
+      match `manifest.json`. `npm run release` now checks and pushes the tag
+
+Audited and fine: no lookbehind in any regular expression, no Node or Electron APIs, no
+`innerHTML`, no console logging, no `activeLeaf`, never writes to the vault, settings without
+headings, command names in sentence case and IDs without the plugin ID, the description ends with
+a period, and the id `verse-graph` and the name are unused among 8,200 listed plugins.
+
+## Release and submit
+- [ ] Make the repository public
+- [ ] Merge, release `1.0.0` through Actions, and check the workflow's run
+- [ ] You: sign in at community.obsidian.md, add the plugin, and act on the review

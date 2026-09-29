@@ -11,7 +11,7 @@
 		"lint": "eslint .",
 		"test": "vitest run",
 		"check": "npm run build && npm run lint && npm test",
-		"release": "npm run check && gh release create \"$npm_package_version\" main.js manifest.json styles.css --verify-tag --title \"$npm_package_version\" --generate-notes",
+		"release": "npm run check && git push --follow-tags",
 		"test-vault": "npm run build && node scripts/make-test-vault.mjs",
 		"big-vault": "npm run build && node scripts/make-big-vault.mjs",
 		"compare-app": "node scripts/compare-app.mjs"

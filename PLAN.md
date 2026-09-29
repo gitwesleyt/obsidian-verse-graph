@@ -246,6 +246,7 @@ headings, command names in sentence case and IDs without the plugin ID, the desc
 a period, and the id `verse-graph` and the name are unused among 8,200 listed plugins.
 
 ## Release and submit
-- [ ] Make the repository public
-- [ ] Merge, release `1.0.0` through Actions, and check the workflow's run
+- [x] Make the repository public
+- [x] Merge, release `1.0.0` through Actions, and check the workflow's run: it passed, and
+      `gh attestation verify` confirms the published `main.js` and `styles.css` (2026-09-29)
 - [ ] You: sign in at community.obsidian.md, add the plugin, and act on the review

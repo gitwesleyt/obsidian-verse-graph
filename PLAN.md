@@ -206,7 +206,7 @@ Session 3's 5,000-note timing check is what proves these rules hold, not what th
 
 All taken. The first five were built as recommended; the sixth was dropped.
 
-- [x] **Where a note's date comes from.** A `date` property if the note has one, else a date in the file name (`2026-09-26 …`), else the day the file was created. Creation dates can shift when files are synced or copied, which is why they're the last resort.
+- [x] **Where a note's date comes from.** A `date` property if the note has one, else a `sermon date` property (Word and Apple Notes imports write that one), else a date in the file name (`2026-09-26 …`), else the day the file was created. Creation dates can shift when files are synced or copied, which is why they're the last resort.
 - [x] **Only Scripture Thread's links, or plain-text references too?** Links only. Finding plain text for the graph means reading every note in the vault on every rebuild, which is what the speed rules forbid.
 - [x] **Which verse-linking notes count as entries.** Every note except the parent-chain link, using Scripture Thread's `isParentLink` rule, so commentary written inside a verse note appears.
 - [x] **Plugin name and id.** *Verse Graph*, `verse-graph`. The id can't change now that it's installed.

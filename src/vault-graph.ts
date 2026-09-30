@@ -23,6 +23,8 @@ export type LinkIndex = {
 export type NoteFacts = {
 	/** The note's `date` property, whatever type it has. */
 	dateProperty: unknown;
+	/** The note's `sermon date` property, used when there is no usable `date`. */
+	sermonDateProperty?: unknown;
 	/** When the file was created, in milliseconds. */
 	created: number;
 };
@@ -172,12 +174,17 @@ const DATE = /(\d{4})-(\d{2})-(\d{2})/;
 
 /**
  * When a note was written, in milliseconds: its `date` property if it has one,
- * else a date in its name (`2026-09-26 Sermon notes`), else when the file was
- * created. Creation dates shift when files are synced or copied, which is why
+ * else its `sermon date` property, else a date in its name
+ * (`2026-09-26 Sermon notes`), else when the file was created. Creation dates shift when files are synced or copied, which is why
  * they are the last resort.
  */
 export function noteDate(path: string, facts: NoteFacts): number {
-	return dateFrom(facts.dateProperty) ?? dateFrom(titleOf(path)) ?? facts.created;
+	return (
+		dateFrom(facts.dateProperty) ??
+		dateFrom(facts.sermonDateProperty) ??
+		dateFrom(titleOf(path)) ??
+		facts.created
+	);
 }
 
 /** The first calendar date (`YYYY-MM-DD`) anywhere in a string, at local midnight. */

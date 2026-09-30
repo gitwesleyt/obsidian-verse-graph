@@ -189,6 +189,21 @@ describe('noteDate', () => {
 		expect(noteDate('Journal/Sermon.md', { dateProperty: undefined, created })).toBe(created);
 	});
 
+	it('uses the sermon date property when there is no usable date property', () => {
+		const sermon = new Date(2011, 8, 15).getTime();
+		expect(noteDate('Sermon.md', { dateProperty: undefined, sermonDateProperty: '2011-09-15', created })).toBe(sermon);
+		expect(noteDate('Sermon.md', { dateProperty: 'someday', sermonDateProperty: '2011-09-15', created })).toBe(sermon);
+		expect(noteDate('2026-05-05 Sermon.md', { dateProperty: undefined, sermonDateProperty: '2011-09-15', created })).toBe(sermon);
+	});
+
+	it('prefers date over sermon date, and ignores a partial or missing sermon date', () => {
+		expect(noteDate('Sermon.md', { dateProperty: '2026-09-26', sermonDateProperty: '2011-09-15', created })).toBe(
+			new Date(2026, 8, 26).getTime(),
+		);
+		expect(noteDate('Sermon.md', { dateProperty: undefined, sermonDateProperty: '2003-05', created })).toBe(created);
+		expect(noteDate('Sermon.md', { dateProperty: undefined, sermonDateProperty: null, created })).toBe(created);
+	});
+
 	it('ignores a property that is not a real date', () => {
 		expect(noteDate('Notes.md', { dateProperty: 'someday', created })).toBe(created);
 		expect(noteDate('Notes.md', { dateProperty: '2026-02-31', created })).toBe(created);

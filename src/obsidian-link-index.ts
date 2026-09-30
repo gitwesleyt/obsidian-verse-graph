@@ -10,12 +10,16 @@ export function linkIndexOf(app: App): LinkIndex {
 	};
 }
 
-/** A note's date property and creation time, from memory. */
+/** A note's `date` and `sermon date` properties and creation time, from memory. */
 export function noteFactsOf(app: App): (path: string) => NoteFacts {
-	return (path) => ({
-		dateProperty: app.metadataCache.getCache(path)?.frontmatter?.date as unknown,
-		created: app.vault.getFileByPath(path)?.stat.ctime ?? 0,
-	});
+	return (path) => {
+		const frontmatter = app.metadataCache.getCache(path)?.frontmatter;
+		return {
+			dateProperty: frontmatter?.date as unknown,
+			sermonDateProperty: frontmatter?.['sermon date'] as unknown,
+			created: app.vault.getFileByPath(path)?.stat.ctime ?? 0,
+		};
+	};
 }
 
 /** A note's tags, in its body and its properties, without `#`, from memory. */
